@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────── ENUMS ────────────────────────
+
+enum UserRole {
+  OWNER
+  MANAGER
+  OPERATOR
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  MIXED
+}
+
+enum DispatchStatus {
+  PENDING
+  CONFIRMED
+  RECONCILED
+}
+
+enum ItemCategory {
+  FOOD
+  BEVERAGE
+  SUPPLY
+  PACKAGING
+}
+
+enum SalaryStatus {
+  DRAFT
+  FINALIZED
+  PAID
+}
+
+enum SeasonType {
+  WINTER
+  SUMMER
+  MONSOON
+  FESTIVAL
+  ALL_YEAR
+}
+
+// ──────────────────────── USERS ────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  role      UserRole @default(OPERATOR)
+  aadhaar   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedKiosk     Kiosk?           @relation("KioskOperator")
+  managedKiosks     Kiosk[]          @relation("KioskManager")
+  dispatchesCreated Dispatch[]       @relation("DispatchCreator")
+  reconciliations   Reconciliation[]
+  bills             Bill[]
+  salaryRecords     SalaryRecord[]
+  advances          Advance[]
+}
+
+// ──────────────────────── KIOSKS ───────────────────────
+
+model Kiosk {
+  id               String   @id @default(cuid())
+  name             String
+  type             String
+  location         String
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  operatorId       String?  @unique
+  operator         User?    @relation("KioskOperator", fields: [operatorId], references: [id])
+  managerId        String?
+  manager          User?    @relation("KioskManager", fields: [managerId], references: [id])
+  activeTemplateId String?
+  activeTemplate   MenuTemplate? @relation("ActiveTemplate", fields: [activeTemplateId], references: [id])
+
+  dispatches      Dispatch[]
+  bills           Bill[]
+  reconciliations Reconciliation[]
+}
+
+// ──────────────────────── ITEMS ────────────────────────
+
+model Item {
+  id           String       @id @default(cuid())
+  name         String
+  unit         String
+  costPrice    Float
+  sellPrice    Float        @default(0)
+  category     ItemCategory @default(FOOD)
+  dailyMargin  Int          @default(0)
+  seasonTags   SeasonType[] @default([ALL_YEAR])
+  isPerishable Boolean      @default(false)
+  shelfLifeHrs Int?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  variants          ItemVariant[]
+  dispatchItems     DispatchItem[]
+  billItems         BillItem[]
+  reconItems        ReconItem[]
+  menuTemplateItems MenuTemplateItem[]
+}
+
+model ItemVariant {
+  id        String  @id @default(cuid())
+  name      String
+  costPrice Float
+  sellPrice Float
+  itemId    String
+  item      Item    @relation(fields: [itemId], references: [id])
+  isActive  Boolean @default(true)
+}
+
+// ──────────────────────── SEASONS & MENU TEMPLATES ────
+
+model Season {
+  id        String     @id @default(cuid())
+  name      String
+  type      SeasonType
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean    @default(false)
+  templates MenuTemplate[]
+}
+
+model MenuTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  kioskType String
+  seasonId  String?
+  season    Season?  @relation(fields: [seasonId], references: [id])
+  isActive  Boolean  @default(true)
+
+  items        MenuTemplateItem[]
+  activeKiosks Kiosk[] @relation("ActiveTemplate")
+}
+
+model MenuTemplateItem {
+  id         String       @id @default(cuid())
+  templateId String
+  template   MenuTemplate @relation(fields: [templateId], references: [id])
+  itemId     String
+  item       Item         @relation(fields: [itemId], references: [id])
+  defaultQty Int
+
+  @@unique([templateId, itemId])
+}
+
+// ──────────────────────── DISPATCH ─────────────────────
+
+model Dispatch {
+  id        String         @id @default(cuid())
+  date      DateTime       @db.Date
+  status    DispatchStatus @default(PENDING)
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  kioskId     String
+  kiosk       Kiosk    @relation(fields: [kioskId], references: [id])
+  createdById String
+  createdBy   User     @relation("DispatchCreator", fields: [createdById], references: [id])
+
+  items          DispatchItem[]
+  reconciliation Reconciliation?
+
+  @@unique([kioskId, date])
+}
+
+model DispatchItem {
+  id         String   @id @default(cuid())
+  quantity   Int
+  dispatchId String
+  dispatch   Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id])
+
+  @@unique([dispatchId, itemId])
+}
+
+// ──────────────────────── BILLING ──────────────────────
+
+model Bill {
+  id            String      @id @default(cuid())
+  billNumber    Int         @default(autoincrement())
+  date          DateTime    @db.Date
+  total         Float
+  paymentMode   PaymentMode @default(CASH)
+  customerName  String?
+  customerPhone String?
+  notes         String?
+  createdAt     DateTime    @default(now())
+
+  kioskId    String
+  kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+
+  items BillItem[]
+}
+
+model BillItem {
+  id        String @id @default(cuid())
+  quantity  Int
+  unitPrice Float
+  lineTotal Float
+  billId    String
+  bill      Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item   @relation(fields: [itemId], references: [id])
+}
+
+// ──────────────────────── RECONCILIATION ───────────────
+
+model Reconciliation {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  status    String   @default("COMPLETED")
+  notes     String?
+  totalLoss Float    @default(0)
+  createdAt DateTime @default(now())
+
+  dispatchId String   @unique
+  dispatch   Dispatch @relation(fields: [dispatchId], references: [id])
+  kioskId    String
+  kiosk      Kiosk    @relation(fields: [kioskId], references: [id])
+  operatorId String
+  operator   User     @relation(fields: [operatorId], references: [id])
+
+  items ReconItem[]
+}
+
+model ReconItem {
+  id             String @id @default(cuid())
+  dispatched     Int
+  sold           Int
+  returned       Int
+  wasted         Int
+  allowedMargin  Int
+  chargeableLoss Int
+  lossAmount     Float
+
+  reconciliationId String
+  reconciliation   Reconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             Item           @relation(fields: [itemId], references: [id])
+
+  @@unique([reconciliationId, itemId])
+}
+
+// ──────────────────────── SALARY ───────────────────────
+
+model SalaryRecord {
+  id              String       @id @default(cuid())
+  month           String
+  baseSalary      Float
+  totalLossDed    Float        @default(0)
+  totalAdvanceDed Float        @default(0)
+  bonus           Float        @default(0)
+  adjustments     Float        @default(0)
+  adjustmentNotes String?
+  netSalary       Float
+  status          SalaryStatus @default(DRAFT)
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+
+  @@unique([operatorId, month])
+}
+
+model Advance {
+  id        String   @id @default(cuid())
+  amount    Float
+  date      DateTime @db.Date
+  notes     String?
+  createdAt DateTime @default(now())
+
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+}
