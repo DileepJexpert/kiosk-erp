@@ -20,16 +20,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, AlertTriangle } from "lucide-react";
+import { Eye, AlertTriangle, Ban } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function ReconcilePage() {
   const [viewId, setViewId] = useState<string | null>(null);
+  const [confirmVoidId, setConfirmVoidId] = useState<string | null>(null);
+  const utils = trpc.useUtils();
   const recons = trpc.reconciliation.list.useQuery();
   const detail = trpc.reconciliation.getById.useQuery(
     { id: viewId! },
     { enabled: !!viewId }
   );
+
+  const voidRecon = trpc.reconciliation.void.useMutation({
+    onSuccess: () => {
+      utils.reconciliation.list.invalidate();
+      setConfirmVoidId(null);
+      setViewId(null);
+      toast.success("Reconciliation voided successfully");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleVoid = () => {
+    if (confirmVoidId) {
+      voidRecon.mutate({ id: confirmVoidId });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -165,6 +184,49 @@ export default function ReconcilePage() {
                   ))}
                 </TableBody>
               </Table>
+
+              {/* Void Button */}
+              {detail.data.status !== "VOIDED" && (
+                <div className="pt-4 border-t">
+                  {confirmVoidId === detail.data.id ? (
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-red-600 flex-1">
+                        <AlertTriangle className="h-4 w-4 inline mr-1" />
+                        Are you sure you want to void this reconciliation? This cannot be undone.
+                      </p>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleVoid}
+                        disabled={voidRecon.isPending}
+                      >
+                        {voidRecon.isPending ? "Voiding..." : "Confirm Void"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmVoidId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setConfirmVoidId(detail.data!.id)}
+                    >
+                      <Ban className="h-4 w-4 mr-1" /> Void Reconciliation
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {detail.data.status === "VOIDED" && (
+                <div className="pt-4 border-t">
+                  <Badge className="bg-red-100 text-red-700">VOIDED</Badge>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

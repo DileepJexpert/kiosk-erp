@@ -2,6 +2,18 @@
 
 import { trpc } from "@/lib/trpc-client";
 import { formatRupee, formatDate } from "@/lib/utils";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +39,7 @@ export default function DashboardPage() {
   const kioskStatus = trpc.dashboard.getKioskStatus.useQuery();
   const recentBills = trpc.dashboard.getRecentBills.useQuery({ limit: 8 });
   const alerts = trpc.dashboard.getAlerts.useQuery();
+  const revenueChart = trpc.dashboard.getRevenueChart.useQuery({ days: 7 });
 
   return (
     <div className="space-y-6">
@@ -206,6 +219,80 @@ export default function DashboardPage() {
                   </p>
                 )}
               </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Revenue Trend (7 days)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {revenueChart.isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={revenueChart.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(v) =>
+                      new Date(v).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    }
+                    fontSize={12}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    fontSize={12}
+                  />
+                  <Tooltip
+                    formatter={(value) => [formatRupee(Number(value)), "Revenue"]}
+                    labelFormatter={(label) => formatDate(label)}
+                  />
+                  <Bar dataKey="revenue" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Cash vs UPI Split - use kiosk status data */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Kiosk Revenue Comparison</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {kioskStatus.isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={kioskStatus.data?.filter((k) => k.todayRevenue > 0)}
+                  layout="vertical"
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    type="number"
+                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    fontSize={12}
+                  />
+                  <YAxis type="category" dataKey="name" width={100} fontSize={12} />
+                  <Tooltip
+                    formatter={(value) => [formatRupee(Number(value)), "Revenue"]}
+                  />
+                  <Bar dataKey="todayRevenue" fill="#2563eb" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>

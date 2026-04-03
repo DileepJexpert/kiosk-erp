@@ -1,10 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { formatDate, formatRupee } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -13,9 +21,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Eye, Printer } from "lucide-react";
 
 export default function BillingPage() {
+  const [receiptBillId, setReceiptBillId] = useState<string | null>(null);
   const bills = trpc.billing.list.useQuery();
+  const receipt = trpc.billing.getReceipt.useQuery(
+    { billId: receiptBillId! },
+    { enabled: !!receiptBillId }
+  );
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const paymentColor = (mode: string) => {
     switch (mode) {
@@ -52,6 +70,7 @@ export default function BillingPage() {
                   <TableHead>Items</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -66,11 +85,16 @@ export default function BillingPage() {
                       <Badge className={paymentColor(bill.paymentMode)}>{bill.paymentMode}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">{formatRupee(bill.total)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => setReceiptBillId(bill.id)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {bills.data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No bills found
                     </TableCell>
                   </TableRow>
@@ -80,6 +104,68 @@ export default function BillingPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Receipt Dialog */}
+      <Dialog open={!!receiptBillId} onOpenChange={(v) => !v && setReceiptBillId(null)}>
+        <DialogContent className="max-w-md print:shadow-none print:border-none">
+          <DialogHeader>
+            <DialogTitle>Receipt</DialogTitle>
+          </DialogHeader>
+          {receipt.isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+          ) : receipt.data ? (
+            <div className="space-y-4 print:text-black" id="receipt-content">
+              <div className="text-center border-b pb-3">
+                <p className="font-bold text-lg">{receipt.data.kiosk.name}</p>
+                <p className="text-sm text-muted-foreground">{formatDate(receipt.data.date)}</p>
+                <p className="text-sm font-mono">Bill #{receipt.data.billNumber}</p>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receipt.data.items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="text-sm">{item.item.name}</TableCell>
+                      <TableCell className="text-right text-sm">{item.quantity}</TableCell>
+                      <TableCell className="text-right text-sm">{formatRupee(item.unitPrice)}</TableCell>
+                      <TableCell className="text-right text-sm font-medium">{formatRupee(item.lineTotal)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="border-t pt-3 space-y-1">
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total</span>
+                  <span>{formatRupee(receipt.data.total)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Payment Mode</span>
+                  <Badge className={paymentColor(receipt.data.paymentMode)}>
+                    {receipt.data.paymentMode}
+                  </Badge>
+                </div>
+              </div>
+
+              <Button className="w-full print:hidden" onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-1" /> Print
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

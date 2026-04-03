@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +33,7 @@ export default function DispatchPage() {
   const [viewDispatch, setViewDispatch] = useState<string | null>(null);
   const [selectedKiosk, setSelectedKiosk] = useState("");
   const [dispatchItems, setDispatchItems] = useState<{ itemId: string; quantity: number; itemName: string }[]>([]);
+  const [dispatchNotes, setDispatchNotes] = useState("");
   const utils = trpc.useUtils();
 
   const dispatches = trpc.dispatch.list.useQuery();
@@ -55,6 +57,7 @@ export default function DispatchPage() {
       setCreateOpen(false);
       setDispatchItems([]);
       setSelectedKiosk("");
+      setDispatchNotes("");
       toast.success("Dispatch created successfully");
     },
     onError: (err) => toast.error(err.message),
@@ -84,6 +87,7 @@ export default function DispatchPage() {
       kioskId: selectedKiosk,
       date: today,
       items: dispatchItems.map((i) => ({ itemId: i.itemId, quantity: i.quantity })),
+      ...(dispatchNotes.trim() && { notes: dispatchNotes.trim() }),
     });
   };
 
@@ -200,6 +204,16 @@ export default function DispatchPage() {
                           </option>
                         ))}
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      name="notes"
+                      placeholder="Optional notes for this dispatch"
+                      value={dispatchNotes}
+                      onChange={(e) => setDispatchNotes(e.target.value)}
+                    />
                   </div>
 
                   <Button

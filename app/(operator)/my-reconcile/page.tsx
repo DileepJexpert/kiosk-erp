@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { ClipboardCheck, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,6 +28,7 @@ interface ReconEntry {
 export default function OperatorReconcilePage() {
   const [selectedDispatch, setSelectedDispatch] = useState<string | null>(null);
   const [entries, setEntries] = useState<ReconEntry[]>([]);
+  const [reconNotes, setReconNotes] = useState("");
   const utils = trpc.useUtils();
 
   const dispatches = trpc.dispatch.getUnreconciled.useQuery();
@@ -41,6 +43,7 @@ export default function OperatorReconcilePage() {
       utils.dispatch.getUnreconciled.invalidate();
       setSelectedDispatch(null);
       setEntries([]);
+      setReconNotes("");
 
       if (data.warnings.length > 0) {
         toast.warning(
@@ -105,6 +108,7 @@ export default function OperatorReconcilePage() {
         sold: e.sold,
         returned: e.returned,
       })),
+      ...(reconNotes.trim() && { notes: reconNotes.trim() }),
     });
   };
 
@@ -222,6 +226,19 @@ export default function OperatorReconcilePage() {
               </CardContent>
             </Card>
           ))}
+
+          {/* Notes */}
+          <Card>
+            <CardContent className="py-4 space-y-2">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea
+                name="notes"
+                placeholder="Optional notes for this reconciliation"
+                value={reconNotes}
+                onChange={(e) => setReconNotes(e.target.value)}
+              />
+            </CardContent>
+          </Card>
 
           {/* Total and Submit */}
           <Card className="border-2 border-orange-200 sticky bottom-20">

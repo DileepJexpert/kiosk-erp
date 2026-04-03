@@ -53,6 +53,36 @@ export const itemRouter = createTRPCRouter({
       return ctx.db.item.update({ where: { id }, data });
     }),
 
+  addVariant: ownerProcedure
+    .input(z.object({
+      itemId: z.string(),
+      name: z.string().min(1),
+      costPrice: z.number().min(0),
+      sellPrice: z.number().min(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.itemVariant.create({ data: input });
+    }),
+
+  updateVariant: ownerProcedure
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1).optional(),
+      costPrice: z.number().min(0).optional(),
+      sellPrice: z.number().min(0).optional(),
+      isActive: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.itemVariant.update({ where: { id }, data });
+    }),
+
+  deleteVariant: ownerProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.itemVariant.delete({ where: { id: input.id } });
+    }),
+
   listSellable: operatorProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     const kiosk = await ctx.db.kiosk.findFirst({
