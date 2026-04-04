@@ -40,14 +40,14 @@ export default function SuppliersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [gstNumber, setGstNumber] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
 
   // Purchase form
   const [purchaseSupplierId, setPurchaseSupplierId] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
   const [invoiceNo, setInvoiceNo] = useState("");
   const [purchaseItems, setPurchaseItems] = useState<
-    { itemId: string; quantity: number; unitCost: number }[]
+    { itemId: string; quantity: number; unitPrice: number }[]
   >([]);
 
   const suppliers = trpc.supplier.list.useQuery();
@@ -59,7 +59,7 @@ export default function SuppliersPage() {
     onSuccess: () => {
       toast.success("Supplier created");
       setCreateOpen(false);
-      setName(""); setPhone(""); setAddress(""); setGstNumber("");
+      setName(""); setPhone(""); setAddress(""); setPaymentTerms("");
       suppliers.refetch();
     },
     onError: (err) => toast.error(err.message),
@@ -77,12 +77,12 @@ export default function SuppliersPage() {
   });
 
   const addPurchaseItem = () => {
-    setPurchaseItems([...purchaseItems, { itemId: "", quantity: 1, unitCost: 0 }]);
+    setPurchaseItems([...purchaseItems, { itemId: "", quantity: 1, unitPrice: 0 }]);
   };
 
   const handleCreatePurchase = () => {
     if (!purchaseSupplierId || purchaseItems.length === 0) return;
-    const validItems = purchaseItems.filter((i) => i.itemId && i.quantity > 0 && i.unitCost > 0);
+    const validItems = purchaseItems.filter((i) => i.itemId && i.quantity > 0 && i.unitPrice > 0);
     if (validItems.length === 0) return;
 
     const dateObj = new Date(purchaseDate);
@@ -91,7 +91,7 @@ export default function SuppliersPage() {
     createPurchase.mutate({
       supplierId: purchaseSupplierId,
       date: dateObj,
-      invoiceNo: invoiceNo || undefined,
+      notes: invoiceNo || undefined,
       items: validItems,
     });
   };
@@ -126,11 +126,11 @@ export default function SuppliersPage() {
                   <Input value={address} onChange={(e) => setAddress(e.target.value)} />
                 </div>
                 <div>
-                  <Label>GST Number</Label>
-                  <Input value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} />
+                  <Label>Payment Terms</Label>
+                  <Input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="e.g. Net 30" />
                 </div>
                 <Button
-                  onClick={() => createSupplier.mutate({ name, phone: phone || undefined, address: address || undefined, gstNumber: gstNumber || undefined })}
+                  onClick={() => createSupplier.mutate({ name, phone, address: address || undefined, paymentTerms: undefined })}
                   disabled={!name || createSupplier.isPending}
                   className="w-full"
                 >
@@ -214,10 +214,10 @@ export default function SuppliersPage() {
                           <Input
                             type="number"
                             placeholder="Cost"
-                            value={pi.unitCost || ""}
+                            value={pi.unitPrice || ""}
                             onChange={(e) => {
                               const updated = [...purchaseItems];
-                              updated[idx].unitCost = parseFloat(e.target.value) || 0;
+                              updated[idx].unitPrice = parseFloat(e.target.value) || 0;
                               setPurchaseItems(updated);
                             }}
                           />
@@ -237,7 +237,7 @@ export default function SuppliersPage() {
                   </div>
                   {purchaseItems.length > 0 && (
                     <p className="text-sm font-medium mt-2 text-right">
-                      Total: {formatRupee(purchaseItems.reduce((s, i) => s + i.quantity * i.unitCost, 0))}
+                      Total: {formatRupee(purchaseItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0))}
                     </p>
                   )}
                 </div>
@@ -276,7 +276,7 @@ export default function SuppliersPage() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>GST</TableHead>
+                      <TableHead>Terms</TableHead>
                       <TableHead>Purchases</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -285,7 +285,7 @@ export default function SuppliersPage() {
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.name}</TableCell>
                         <TableCell>{s.phone || "-"}</TableCell>
-                        <TableCell className="text-sm">{s.gstNumber || "-"}</TableCell>
+                        <TableCell className="text-sm">{s.paymentTerms || "-"}</TableCell>
                         <TableCell>{s._count.purchases}</TableCell>
                       </TableRow>
                     ))}
@@ -321,7 +321,7 @@ export default function SuppliersPage() {
                       <TableRow key={p.id}>
                         <TableCell>{formatDate(p.date)}</TableCell>
                         <TableCell className="font-medium">{p.supplier.name}</TableCell>
-                        <TableCell>{p.invoiceNo || "-"}</TableCell>
+                        <TableCell>{p.notes || "-"}</TableCell>
                         <TableCell>{p.items.length} items</TableCell>
                         <TableCell className="text-right font-medium">{formatRupee(p.totalAmount)}</TableCell>
                       </TableRow>
@@ -362,7 +362,7 @@ export default function SuppliersPage() {
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.item.name}</TableCell>
                         <TableCell>{s.item.unit}</TableCell>
-                        <TableCell className="text-right font-medium">{s.quantity}</TableCell>
+                        <TableCell className="text-right font-medium">{s.currentQty}</TableCell>
                       </TableRow>
                     ))}
                     {stock.data?.length === 0 && (

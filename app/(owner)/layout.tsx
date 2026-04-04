@@ -29,6 +29,8 @@ import {
   Shield,
   Heart,
   BarChart3,
+  Trophy,
+  IndianRupee,
 } from "lucide-react";
 
 const navItems = [
@@ -37,11 +39,13 @@ const navItems = [
   { label: "Reconciliation", href: "/reconcile", icon: ClipboardCheck },
   { label: "Inventory", href: "/inventory", icon: Package },
   { label: "Billing", href: "/billing", icon: Receipt },
+  { label: "GST Reports", href: "/gst-reports", icon: IndianRupee },
   { label: "Salary", href: "/salary", icon: Wallet },
   { label: "Attendance", href: "/attendance", icon: CalendarCheck },
   { label: "Cash Collection", href: "/cash-collection", icon: Banknote },
   { label: "Expenses", href: "/expenses", icon: CreditCard },
   { label: "Suppliers", href: "/suppliers", icon: Users },
+  { label: "Performance", href: "/performance", icon: Trophy },
   { label: "Alerts", href: "/alerts", icon: Bell },
   { label: "Compliance", href: "/compliance", icon: Shield },
   { label: "Customers", href: "/customers", icon: Heart },

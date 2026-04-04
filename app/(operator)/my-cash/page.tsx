@@ -14,8 +14,8 @@ import { Banknote, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function MyCashPage() {
-  const [collectedCash, setCollectedCash] = useState("");
-  const [notes, setNotes] = useState("");
+  const [actualCash, setActualCash] = useState("");
+  const [shortageReason, setShortageReason] = useState("");
   const today = getToday();
 
   const profile = trpc.user.getProfile.useQuery();
@@ -35,19 +35,19 @@ export default function MyCashPage() {
     onSuccess: () => {
       toast.success("Cash handover recorded!");
       todayCollection.refetch();
-      setCollectedCash("");
-      setNotes("");
+      setActualCash("");
+      setShortageReason("");
     },
     onError: (err) => toast.error(err.message),
   });
 
   const handleSubmit = () => {
-    if (!kioskId || !collectedCash) return;
+    if (!kioskId || !actualCash) return;
     recordMutation.mutate({
       kioskId,
       date: today,
-      collectedCash: parseFloat(collectedCash),
-      notes: notes || undefined,
+      actualCash: parseFloat(actualCash),
+      shortageReason: shortageReason || undefined,
     });
   };
 
@@ -88,19 +88,19 @@ export default function MyCashPage() {
             </div>
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
-                <p className="text-xs text-muted-foreground">Collected</p>
-                <p className="font-bold">{formatRupee(todayCollection.data.collectedCash)}</p>
+                <p className="text-xs text-muted-foreground">Actual Cash</p>
+                <p className="font-bold">{formatRupee(todayCollection.data.actualCash)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Difference</p>
-                <p className={`font-bold ${todayCollection.data.difference < 0 ? "text-red-600" : "text-green-600"}`}>
-                  {formatRupee(todayCollection.data.difference)}
+                <p className="text-xs text-muted-foreground">Shortage</p>
+                <p className={`font-bold ${todayCollection.data.shortage > 0 ? "text-red-600" : "text-green-600"}`}>
+                  {formatRupee(todayCollection.data.shortage)}
                 </p>
               </div>
             </div>
-            <Badge className="mt-2 bg-green-100 text-green-700">
-              {todayCollection.data.status}
-            </Badge>
+            {todayCollection.data.depositedToBank && (
+              <Badge className="mt-2 bg-green-100 text-green-700">Deposited</Badge>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -117,23 +117,23 @@ export default function MyCashPage() {
               <Label>Cash Amount (₹)</Label>
               <Input
                 type="number"
-                value={collectedCash}
-                onChange={(e) => setCollectedCash(e.target.value)}
+                value={actualCash}
+                onChange={(e) => setActualCash(e.target.value)}
                 placeholder="Enter cash amount"
                 className="text-lg h-12"
               />
             </div>
             <div>
-              <Label>Notes (optional)</Label>
+              <Label>Shortage Reason (if any)</Label>
               <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any discrepancy notes..."
+                value={shortageReason}
+                onChange={(e) => setShortageReason(e.target.value)}
+                placeholder="Reason for any cash discrepancy..."
               />
             </div>
             <Button
               onClick={handleSubmit}
-              disabled={!collectedCash || recordMutation.isPending}
+              disabled={!actualCash || recordMutation.isPending}
               className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
             >
               {recordMutation.isPending ? "Submitting..." : "Submit Cash Handover"}

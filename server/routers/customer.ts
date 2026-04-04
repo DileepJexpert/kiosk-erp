@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, operatorProcedure, ownerProcedure } from "../trpc";
 
-const POINTS_PER_RUPEE = 1; // 1 point per ₹1 spent
+const POINTS_PER_10_RUPEES = 1; // 1 point per ₹10 spent
 const POINTS_TO_RUPEE = 0.25; // 4 points = ₹1 discount
 
 export const customerRouter = createTRPCRouter({
@@ -36,13 +36,14 @@ export const customerRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const pointsEarned = Math.floor(input.billAmount * POINTS_PER_RUPEE);
+      const pointsEarned = Math.floor(input.billAmount / 10); // 1 point per ₹10
       return ctx.db.customer.update({
         where: { id: input.customerId },
         data: {
-          points: { increment: pointsEarned },
-          totalSpent: { increment: input.billAmount },
-          visitCount: { increment: 1 },
+          loyaltyPts: { increment: pointsEarned },
+          totalSpend: { increment: input.billAmount },
+          totalVisits: { increment: 1 },
+          lastVisitAt: new Date(),
         },
       });
     }),
@@ -52,6 +53,7 @@ export const customerRouter = createTRPCRouter({
       z.object({
         customerId: z.string(),
         points: z.number().int().positive(),
+        billId: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -59,26 +61,27 @@ export const customerRouter = createTRPCRouter({
         where: { id: input.customerId },
       });
 
-      if (customer.points < input.points) {
+      if (customer.loyaltyPts < input.points) {
         throw new Error("Insufficient points");
       }
 
-      const discount = input.points * POINTS_TO_RUPEE;
+      const discountAmt = input.points * POINTS_TO_RUPEE;
 
       await ctx.db.customer.update({
         where: { id: input.customerId },
-        data: { points: { decrement: input.points } },
+        data: { loyaltyPts: { decrement: input.points } },
       });
 
       await ctx.db.loyaltyRedemption.create({
         data: {
           customerId: input.customerId,
-          points: input.points,
-          discount,
+          pointsUsed: input.points,
+          discountAmt,
+          billId: input.billId,
         },
       });
 
-      return { discount, remainingPoints: customer.points - input.points };
+      return { discountAmt, remainingPoints: customer.loyaltyPts - input.points };
     }),
 
   list: ownerProcedure
@@ -99,7 +102,7 @@ export const customerRouter = createTRPCRouter({
 
       return ctx.db.customer.findMany({
         where,
-        orderBy: { totalSpent: "desc" },
+        orderBy: { totalSpend: "desc" },
         take: input?.limit ?? 50,
       });
     }),
@@ -107,17 +110,17 @@ export const customerRouter = createTRPCRouter({
   getStats: ownerProcedure.query(async ({ ctx }) => {
     const totalCustomers = await ctx.db.customer.count();
     const repeatCustomers = await ctx.db.customer.count({
-      where: { visitCount: { gte: 3 } },
+      where: { totalVisits: { gte: 3 } },
     });
-    const totalPointsIssued = await ctx.db.customer.aggregate({
-      _sum: { totalSpent: true },
+    const agg = await ctx.db.customer.aggregate({
+      _sum: { totalSpend: true },
     });
 
     return {
       totalCustomers,
       repeatCustomers,
       repeatRate: totalCustomers > 0 ? ((repeatCustomers / totalCustomers) * 100).toFixed(1) : "0",
-      totalSpent: totalPointsIssued._sum.totalSpent || 0,
+      totalSpend: agg._sum.totalSpend || 0,
     };
   }),
 });

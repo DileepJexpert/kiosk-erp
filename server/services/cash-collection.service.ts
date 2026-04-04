@@ -6,7 +6,6 @@ export async function calculateExpectedCash(kioskId: string, date: Date) {
     where: { kioskId, date },
   });
 
-  // Expected cash = CASH bills total + cash portion of MIXED bills
   let expectedCash = 0;
   for (const bill of bills) {
     if (bill.paymentMode === "CASH") {
@@ -21,42 +20,42 @@ export async function calculateExpectedCash(kioskId: string, date: Date) {
 
 export async function recordCollection(
   kioskId: string,
-  operatorId: string,
+  collectedById: string,
   date: Date,
-  collectedCash: number,
-  notes?: string
+  actualCash: number,
+  shortageReason?: string
 ) {
   const expectedCash = await calculateExpectedCash(kioskId, date);
-  const difference = collectedCash - expectedCash;
+  const shortage = expectedCash - actualCash;
 
   return db.cashCollection.upsert({
     where: { kioskId_date: { kioskId, date } },
     create: {
       kioskId,
-      operatorId,
+      collectedById,
       date,
       expectedCash,
-      collectedCash,
-      difference,
-      status: "COLLECTED",
-      collectedAt: new Date(),
-      notes,
+      actualCash,
+      shortage,
+      shortageReason,
     },
     update: {
-      collectedCash,
+      actualCash,
       expectedCash,
-      difference,
-      status: "COLLECTED",
-      collectedAt: new Date(),
-      notes,
+      shortage,
+      shortageReason,
     },
   });
 }
 
-export async function verifyCollection(collectionId: string) {
+export async function markDeposited(collectionId: string, bankDepositRef: string) {
   return db.cashCollection.update({
     where: { id: collectionId },
-    data: { status: "VERIFIED" },
+    data: {
+      depositedToBank: true,
+      bankDepositRef,
+      bankDepositDate: new Date(),
+    },
   });
 }
 
@@ -66,19 +65,19 @@ export async function getCollectionSummary(kioskId: string | undefined, startDat
 
   const collections = await db.cashCollection.findMany({
     where,
-    include: { kiosk: true, operator: true },
+    include: { kiosk: true, collectedBy: true },
     orderBy: { date: "desc" },
   });
 
   const totalExpected = collections.reduce((sum, c) => sum + c.expectedCash, 0);
-  const totalCollected = collections.reduce((sum, c) => sum + c.collectedCash, 0);
-  const totalDifference = totalCollected - totalExpected;
+  const totalActual = collections.reduce((sum, c) => sum + c.actualCash, 0);
+  const totalShortage = collections.reduce((sum, c) => sum + c.shortage, 0);
 
   return {
     collections,
     totalExpected,
-    totalCollected,
-    totalDifference,
-    shortages: collections.filter((c) => c.difference < -10).length,
+    totalActual,
+    totalShortage,
+    shortageCount: collections.filter((c) => c.shortage > 50).length,
   };
 }

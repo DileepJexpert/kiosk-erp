@@ -13,9 +13,9 @@ export const supplierRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1),
-        phone: z.string().optional(),
+        phone: z.string().min(1),
         address: z.string().optional(),
-        gstNumber: z.string().optional(),
+        paymentTerms: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -29,7 +29,7 @@ export const supplierRouter = createTRPCRouter({
         name: z.string().min(1).optional(),
         phone: z.string().optional(),
         address: z.string().optional(),
-        gstNumber: z.string().optional(),
+        paymentTerms: z.string().optional(),
         isActive: z.boolean().optional(),
       })
     )
@@ -43,13 +43,12 @@ export const supplierRouter = createTRPCRouter({
       z.object({
         supplierId: z.string(),
         date: z.date(),
-        invoiceNo: z.string().optional(),
         notes: z.string().optional(),
         items: z.array(
           z.object({
             itemId: z.string(),
-            quantity: z.number().int().positive(),
-            unitCost: z.number().positive(),
+            quantity: z.number().positive(),
+            unitPrice: z.number().positive(),
           })
         ),
       })
@@ -58,8 +57,8 @@ export const supplierRouter = createTRPCRouter({
       const purchaseItems = input.items.map((item) => ({
         itemId: item.itemId,
         quantity: item.quantity,
-        unitCost: item.unitCost,
-        lineTotal: item.quantity * item.unitCost,
+        unitPrice: item.unitPrice,
+        lineTotal: item.quantity * item.unitPrice,
       }));
 
       const totalAmount = purchaseItems.reduce((sum, i) => sum + i.lineTotal, 0);
@@ -69,7 +68,6 @@ export const supplierRouter = createTRPCRouter({
           data: {
             supplierId: input.supplierId,
             date: input.date,
-            invoiceNo: input.invoiceNo,
             totalAmount,
             notes: input.notes,
             items: { create: purchaseItems },
@@ -81,12 +79,29 @@ export const supplierRouter = createTRPCRouter({
         for (const item of input.items) {
           await tx.centralStock.upsert({
             where: { itemId: item.itemId },
-            create: { itemId: item.itemId, quantity: item.quantity },
-            update: { quantity: { increment: item.quantity } },
+            create: { itemId: item.itemId, currentQty: item.quantity },
+            update: { currentQty: { increment: item.quantity } },
           });
         }
 
         return purchase;
+      });
+    }),
+
+  markPurchasePaid: ownerProcedure
+    .input(z.object({
+      purchaseId: z.string(),
+      paidAmount: z.number().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const purchase = await ctx.db.purchase.findUniqueOrThrow({
+        where: { id: input.purchaseId },
+      });
+      const newPaid = purchase.paidAmount + input.paidAmount;
+      const status = newPaid >= purchase.totalAmount ? "PAID" : "PARTIAL";
+      return ctx.db.purchase.update({
+        where: { id: input.purchaseId },
+        data: { paidAmount: newPaid, paymentStatus: status },
       });
     }),
 

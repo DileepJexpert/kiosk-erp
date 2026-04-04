@@ -9,7 +9,7 @@ export const expenseRouter = createTRPCRouter({
         kioskId: z.string(),
         date: z.date(),
         amount: z.number().positive(),
-        category: z.enum(["GAS", "TRANSPORT", "CLEANING", "REPAIR", "SUPPLIES", "OTHER"]),
+        category: z.enum(["FUEL_GAS", "LOCAL_PURCHASE", "REPAIR", "LOCATION_RENT", "CLEANING", "TRANSPORT", "MISCELLANEOUS"]),
         description: z.string().min(1),
         receiptUrl: z.string().optional(),
       })

@@ -25,7 +25,7 @@ export const complianceRouter = createTRPCRouter({
         kioskId: z.string(),
         type: z.string().min(1),
         documentNo: z.string().min(1),
-        issuedDate: z.date(),
+        issueDate: z.date(),
         expiryDate: z.date(),
         fileUrl: z.string().optional(),
       })
@@ -39,10 +39,10 @@ export const complianceRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         documentNo: z.string().optional(),
-        issuedDate: z.date().optional(),
+        issueDate: z.date().optional(),
         expiryDate: z.date().optional(),
         fileUrl: z.string().optional(),
-        isActive: z.boolean().optional(),
+        status: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -58,7 +58,7 @@ export const complianceRouter = createTRPCRouter({
 
       return ctx.db.complianceDocument.findMany({
         where: {
-          isActive: true,
+          status: "ACTIVE",
           expiryDate: { lte: futureDate },
         },
         include: { kiosk: true },

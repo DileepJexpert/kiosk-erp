@@ -27,12 +27,13 @@ import { CreditCard, CheckCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  GAS: "Gas/Fuel",
-  TRANSPORT: "Transport",
-  CLEANING: "Cleaning",
+  FUEL_GAS: "Fuel/Gas",
+  LOCAL_PURCHASE: "Local Purchase",
   REPAIR: "Repair",
-  SUPPLIES: "Supplies",
-  OTHER: "Other",
+  LOCATION_RENT: "Location Rent",
+  CLEANING: "Cleaning",
+  TRANSPORT: "Transport",
+  MISCELLANEOUS: "Miscellaneous",
 };
 
 export default function ExpensesPage() {

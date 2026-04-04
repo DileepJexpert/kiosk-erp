@@ -19,7 +19,7 @@ export const alertRouter = createTRPCRouter({
 
       return ctx.db.alert.findMany({
         where,
-        include: { kiosk: true },
+        include: { kiosk: true, operator: true },
         orderBy: { createdAt: "desc" },
         take: input?.limit ?? 50,
       });
@@ -39,6 +39,18 @@ export const alertRouter = createTRPCRouter({
       return ctx.db.alert.updateMany({
         where: { isRead: false },
         data: { isRead: true },
+      });
+    }),
+
+  resolve: ownerProcedure
+    .input(z.object({
+      alertId: z.string(),
+      resolution: z.enum(["investigated", "false_alarm", "action_taken"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.alert.update({
+        where: { id: input.alertId },
+        data: { isResolved: true, resolution: input.resolution, isRead: true },
       });
     }),
 
@@ -62,13 +74,15 @@ export const alertRouter = createTRPCRouter({
         const cashCollection = await ctx.db.cashCollection.findUnique({
           where: { kioskId_date: { kioskId: kiosk.id, date: input.date } },
         });
-        if (cashCollection && cashCollection.difference < -500) {
+        if (cashCollection && cashCollection.shortage > 500) {
           alerts.push({
             type: "CASH_SHORTAGE",
-            severity: cashCollection.difference < -1000 ? "CRITICAL" : "HIGH",
-            message: `Cash shortage of ₹${Math.abs(cashCollection.difference)} at ${kiosk.name}`,
-            data: { kioskId: kiosk.id, amount: cashCollection.difference },
+            severity: cashCollection.shortage > 1000 ? "CRITICAL" : "HIGH",
+            title: `Cash Shortage at ${kiosk.name}`,
+            message: `Cash shortage of ₹${Math.abs(cashCollection.shortage)} at ${kiosk.name}`,
+            data: { kioskId: kiosk.id, amount: cashCollection.shortage },
             kioskId: kiosk.id,
+            operatorId: kiosk.operatorId,
           });
         }
 
@@ -91,13 +105,31 @@ export const alertRouter = createTRPCRouter({
           const avgRevenue = recentBills.reduce((s, b) => s + b.total, 0) / 7;
           const todayRevenue = todayBills.reduce((s, b) => s + b.total, 0);
 
-          if (avgRevenue > 0 && todayRevenue < avgRevenue * 0.4) {
+          if (avgRevenue > 0 && todayRevenue < avgRevenue * 0.7) {
             alerts.push({
-              type: "LOW_REVENUE",
-              severity: "HIGH",
+              type: "REVENUE_DROP",
+              severity: todayRevenue < avgRevenue * 0.4 ? "CRITICAL" : "HIGH",
+              title: `Revenue Drop at ${kiosk.name}`,
               message: `Revenue at ${kiosk.name} is ${Math.round((todayRevenue / avgRevenue) * 100)}% of 7-day average`,
               data: { kioskId: kiosk.id, todayRevenue, avgRevenue },
               kioskId: kiosk.id,
+              operatorId: kiosk.operatorId,
+            });
+          }
+
+          // Check: No bills with dispatch
+          const dispatch = await ctx.db.dispatch.findFirst({
+            where: { kioskId: kiosk.id, date: input.date },
+          });
+          if (dispatch && todayBills.length === 0) {
+            alerts.push({
+              type: "NO_BILLS_WITH_DISPATCH",
+              severity: "CRITICAL",
+              title: `No Bills at ${kiosk.name}`,
+              message: `Dispatch exists but zero bills at ${kiosk.name}`,
+              data: { kioskId: kiosk.id },
+              kioskId: kiosk.id,
+              operatorId: kiosk.operatorId,
             });
           }
         }
@@ -110,10 +142,41 @@ export const alertRouter = createTRPCRouter({
           alerts.push({
             type: "HIGH_WASTAGE",
             severity: recon.totalLoss > 3000 ? "CRITICAL" : "HIGH",
+            title: `High Wastage at ${kiosk.name}`,
             message: `High loss of ₹${recon.totalLoss} at ${kiosk.name}`,
             data: { kioskId: kiosk.id, loss: recon.totalLoss },
             kioskId: kiosk.id,
+            operatorId: kiosk.operatorId,
           });
+        }
+
+        // Check 4: Late reconciliation (after 10 PM)
+        if (recon && new Date(recon.createdAt).getHours() >= 22) {
+          alerts.push({
+            type: "LATE_RECONCILIATION",
+            severity: "MEDIUM",
+            title: `Late Reconciliation at ${kiosk.name}`,
+            message: `Reconciliation submitted after 10 PM at ${kiosk.name}`,
+            data: { kioskId: kiosk.id },
+            kioskId: kiosk.id,
+            operatorId: kiosk.operatorId,
+          });
+        }
+
+        // Check 5: Round number bills (>50% are round numbers)
+        if (todayBills.length >= 5) {
+          const roundBills = todayBills.filter((b) => b.total % 50 === 0).length;
+          if (roundBills / todayBills.length > 0.5) {
+            alerts.push({
+              type: "ROUND_NUMBER_BILLS",
+              severity: "MEDIUM",
+              title: `Suspicious Round Bills at ${kiosk.name}`,
+              message: `${Math.round((roundBills / todayBills.length) * 100)}% of bills are round numbers at ${kiosk.name}`,
+              data: { kioskId: kiosk.id, roundBills, totalBills: todayBills.length },
+              kioskId: kiosk.id,
+              operatorId: kiosk.operatorId,
+            });
+          }
         }
       }
 

@@ -27,12 +27,13 @@ import { CalendarCheck, CreditCard, Wallet, UserCheck, UserX } from "lucide-reac
 import { toast } from "sonner";
 
 const CATEGORY_LABELS: Record<string, string> = {
-  GAS: "Gas/Fuel",
-  TRANSPORT: "Transport",
-  CLEANING: "Cleaning",
+  FUEL_GAS: "Gas/Fuel",
+  LOCAL_PURCHASE: "Local Purchase",
   REPAIR: "Repair",
-  SUPPLIES: "Supplies",
-  OTHER: "Other",
+  LOCATION_RENT: "Location Rent",
+  CLEANING: "Cleaning",
+  TRANSPORT: "Transport",
+  MISCELLANEOUS: "Other",
 };
 
 export default function MyMorePage() {
@@ -119,14 +120,14 @@ export default function MyMorePage() {
               {todayAttendance.data ? (
                 <div className="flex items-center gap-2 mt-1">
                   <Badge className="bg-green-100 text-green-700">{todayAttendance.data.status}</Badge>
-                  {todayAttendance.data.checkIn && (
+                  {todayAttendance.data.checkInAt && (
                     <span className="text-xs text-muted-foreground">
-                      In: {new Date(todayAttendance.data.checkIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                      In: {new Date(todayAttendance.data.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
-                  {todayAttendance.data.checkOut && (
+                  {todayAttendance.data.checkOutAt && (
                     <span className="text-xs text-muted-foreground">
-                      Out: {new Date(todayAttendance.data.checkOut).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                      Out: {new Date(todayAttendance.data.checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
@@ -144,7 +145,7 @@ export default function MyMorePage() {
                 >
                   <UserCheck className="h-3 w-3 mr-1" /> Check In
                 </Button>
-              ) : !todayAttendance.data.checkOut ? (
+              ) : !todayAttendance.data.checkOutAt ? (
                 <Button
                   size="sm"
                   variant="outline"

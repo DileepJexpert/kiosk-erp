@@ -4,18 +4,26 @@ import { checkIn, checkOut, markAttendance, getMonthlyAttendance } from "../serv
 
 export const attendanceRouter = createTRPCRouter({
   checkIn: operatorProcedure
-    .input(z.object({ kioskId: z.string() }))
+    .input(z.object({
+      kioskId: z.string(),
+      lat: z.number().optional(),
+      lng: z.number().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      return checkIn(ctx.session.user.id, input.kioskId, today);
+      return checkIn(ctx.session.user.id, input.kioskId, today, input.lat, input.lng);
     }),
 
   checkOut: operatorProcedure
-    .mutation(async ({ ctx }) => {
+    .input(z.object({
+      lat: z.number().optional(),
+      lng: z.number().optional(),
+    }).optional())
+    .mutation(async ({ ctx, input }) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      return checkOut(ctx.session.user.id, today);
+      return checkOut(ctx.session.user.id, today, input?.lat, input?.lng);
     }),
 
   markAttendance: managerProcedure
@@ -26,6 +34,7 @@ export const attendanceRouter = createTRPCRouter({
         date: z.date(),
         status: z.enum(["PRESENT", "ABSENT", "HALF_DAY", "LEAVE"]),
         notes: z.string().optional(),
+        isSubstitute: z.boolean().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -34,7 +43,8 @@ export const attendanceRouter = createTRPCRouter({
         input.kioskId,
         input.date,
         input.status,
-        input.notes
+        input.notes,
+        input.isSubstitute
       );
     }),
 

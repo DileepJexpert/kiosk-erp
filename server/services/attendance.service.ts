@@ -2,7 +2,13 @@ import { db } from "@/lib/db";
 import { AttendanceStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
-export async function checkIn(operatorId: string, kioskId: string, date: Date) {
+export async function checkIn(
+  operatorId: string,
+  kioskId: string,
+  date: Date,
+  lat?: number,
+  lng?: number
+) {
   const existing = await db.attendance.findUnique({
     where: { operatorId_date: { operatorId, date } },
   });
@@ -14,18 +20,39 @@ export async function checkIn(operatorId: string, kioskId: string, date: Date) {
     });
   }
 
-  return db.attendance.create({
+  // Geo-fence check
+  let geoWarning: string | null = null;
+  if (lat != null && lng != null) {
+    const kiosk = await db.kiosk.findUnique({ where: { id: kioskId } });
+    if (kiosk?.latitude && kiosk?.longitude) {
+      const distance = haversineDistance(lat, lng, kiosk.latitude, kiosk.longitude);
+      if (distance > kiosk.geoFenceRadius) {
+        geoWarning = `Check-in is ${Math.round(distance)}m away from kiosk (limit: ${kiosk.geoFenceRadius}m)`;
+      }
+    }
+  }
+
+  const attendance = await db.attendance.create({
     data: {
       operatorId,
       kioskId,
       date,
       status: "PRESENT",
-      checkIn: new Date(),
+      checkInAt: new Date(),
+      checkInLat: lat,
+      checkInLng: lng,
     },
   });
+
+  return { attendance, geoWarning };
 }
 
-export async function checkOut(operatorId: string, date: Date) {
+export async function checkOut(
+  operatorId: string,
+  date: Date,
+  lat?: number,
+  lng?: number
+) {
   const attendance = await db.attendance.findUnique({
     where: { operatorId_date: { operatorId, date } },
   });
@@ -37,7 +64,7 @@ export async function checkOut(operatorId: string, date: Date) {
     });
   }
 
-  if (attendance.checkOut) {
+  if (attendance.checkOutAt) {
     throw new TRPCError({
       code: "CONFLICT",
       message: "Already checked out",
@@ -46,12 +73,14 @@ export async function checkOut(operatorId: string, date: Date) {
 
   const checkOutTime = new Date();
   const hoursWorked =
-    (checkOutTime.getTime() - (attendance.checkIn?.getTime() || 0)) / (1000 * 60 * 60);
+    (checkOutTime.getTime() - (attendance.checkInAt?.getTime() || 0)) / (1000 * 60 * 60);
 
   return db.attendance.update({
     where: { id: attendance.id },
     data: {
-      checkOut: checkOutTime,
+      checkOutAt: checkOutTime,
+      checkOutLat: lat,
+      checkOutLng: lng,
       status: hoursWorked < 4 ? "HALF_DAY" : "PRESENT",
     },
   });
@@ -62,12 +91,13 @@ export async function markAttendance(
   kioskId: string,
   date: Date,
   status: AttendanceStatus,
-  notes?: string
+  notes?: string,
+  isSubstitute?: boolean
 ) {
   return db.attendance.upsert({
     where: { operatorId_date: { operatorId, date } },
-    create: { operatorId, kioskId, date, status, notes },
-    update: { status, notes },
+    create: { operatorId, kioskId, date, status, notes, isSubstitute: isSubstitute || false },
+    update: { status, notes, isSubstitute: isSubstitute || false },
   });
 }
 
@@ -93,4 +123,18 @@ export async function getMonthlyAttendance(operatorId: string, month: string) {
   };
 
   return { records, summary };
+}
+
+// Haversine formula for distance between two lat/lng points in meters
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }

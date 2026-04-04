@@ -115,7 +115,7 @@ export default function SellPage() {
       kioskId: profile.data.assignedKiosk.id,
       date: today,
       paymentMode,
-      upiRef: upiRef || undefined,
+      upiTransactionRef: upiRef || undefined,
       cashAmount: cashAmount ? parseFloat(cashAmount) : undefined,
       upiAmount: upiAmount ? parseFloat(upiAmount) : undefined,
       orderChannel,
@@ -301,7 +301,7 @@ export default function SellPage() {
                   />
                   {customerLookup.data && (
                     <p className="text-xs text-green-600 mt-1">
-                      {customerLookup.data.name || "Customer"} — {customerLookup.data.points} pts
+                      {customerLookup.data.name || "Customer"} — {customerLookup.data.loyaltyPts} pts
                     </p>
                   )}
                 </div>

@@ -153,15 +153,15 @@ export default function BillingPage() {
                     <span>{formatRupee(receipt.data.subtotal)}</span>
                   </div>
                 )}
-                {(receipt.data.cgst > 0 || receipt.data.sgst > 0) && (
+                {(receipt.data.cgstAmount > 0 || receipt.data.sgstAmount > 0) && (
                   <>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">CGST</span>
-                      <span>{formatRupee(receipt.data.cgst)}</span>
+                      <span>{formatRupee(receipt.data.cgstAmount)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">SGST</span>
-                      <span>{formatRupee(receipt.data.sgst)}</span>
+                      <span>{formatRupee(receipt.data.sgstAmount)}</span>
                     </div>
                   </>
                 )}
@@ -175,10 +175,10 @@ export default function BillingPage() {
                     {receipt.data.paymentMode}
                   </Badge>
                 </div>
-                {receipt.data.upiRef && (
+                {receipt.data.upiTransactionRef && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">UPI Ref</span>
-                    <span className="font-mono text-xs">{receipt.data.upiRef}</span>
+                    <span className="font-mono text-xs">{receipt.data.upiTransactionRef}</span>
                   </div>
                 )}
                 {receipt.data.orderChannel && receipt.data.orderChannel !== "WALK_IN" && (
@@ -189,9 +189,9 @@ export default function BillingPage() {
                 )}
               </div>
 
-              {receipt.data.kiosk.gstNumber && (
+              {receipt.data.kiosk.gstin && (
                 <div className="text-center text-xs text-muted-foreground border-t pt-2">
-                  <p>GSTIN: {receipt.data.kiosk.gstNumber}</p>
+                  <p>GSTIN: {receipt.data.kiosk.gstin}</p>
                 </div>
               )}
 

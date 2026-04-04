@@ -245,13 +245,13 @@ export default function AttendancePage() {
                         <Badge className={statusColor(record.status)}>{record.status}</Badge>
                       </TableCell>
                       <TableCell>
-                        {record.checkIn
-                          ? new Date(record.checkIn).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                        {record.checkInAt
+                          ? new Date(record.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
                           : "-"}
                       </TableCell>
                       <TableCell>
-                        {record.checkOut
-                          ? new Date(record.checkOut).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                        {record.checkOutAt
+                          ? new Date(record.checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
                           : "-"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{record.notes || "-"}</TableCell>

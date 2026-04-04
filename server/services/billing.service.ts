@@ -14,10 +14,12 @@ export interface CreateBillOptions {
   date: Date;
   items: BillItemInput[];
   paymentMode?: PaymentMode;
-  upiRef?: string;
+  upiTransactionRef?: string;
   cashAmount?: number;
   upiAmount?: number;
   orderChannel?: OrderChannel;
+  channelOrderId?: string;
+  channelCommissionRate?: number;
   customerName?: string;
   customerPhone?: string;
   customerId?: string;
@@ -46,29 +48,40 @@ export async function createBill(
   const itemIds = items.map((i) => i.itemId);
   const dbItems = await db.item.findMany({
     where: { id: { in: itemIds } },
-    select: { id: true, gstPercent: true },
+    select: { id: true, gstRate: true },
   });
-  const gstMap = new Map(dbItems.map((i) => [i.id, i.gstPercent]));
+  const gstMap = new Map(dbItems.map((i) => [i.id, i.gstRate]));
 
   // Calculate totals with GST
+  // BRD formula: lineSubtotal = qty × price, lineGST = lineSubtotal × (gstRate/100)
   const billItems = items.map((item) => {
-    const lineTotal = item.quantity * item.unitPrice;
-    const gstPercent = gstMap.get(item.itemId) || 5;
-    const gstAmount = Math.round((lineTotal * gstPercent) / (100 + gstPercent) * 100) / 100;
+    const lineSubtotal = item.quantity * item.unitPrice;
+    const gstRate = gstMap.get(item.itemId) || 5;
+    const gstAmount = Math.round(lineSubtotal * (gstRate / 100) * 100) / 100;
+    const lineTotal = lineSubtotal + gstAmount;
     return {
       itemId: item.itemId,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       lineTotal,
-      gstPercent,
+      gstRate,
       gstAmount,
     };
   });
 
-  const subtotal = billItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const subtotal = billItems.reduce((sum, item) => sum + (item.lineTotal - item.gstAmount), 0);
   const totalGst = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
-  const cgst = Math.round((totalGst / 2) * 100) / 100;
-  const sgst = Math.round((totalGst / 2) * 100) / 100;
+  const cgstAmount = Math.round((totalGst / 2) * 100) / 100;
+  const sgstAmount = Math.round((totalGst / 2) * 100) / 100;
+  const total = subtotal + totalGst;
+
+  // Channel commission calculation
+  let channelCommission: number | undefined;
+  let netRevenue: number | undefined;
+  if (options?.channelCommissionRate) {
+    channelCommission = Math.round(total * (options.channelCommissionRate / 100) * 100) / 100;
+    netRevenue = total - channelCommission;
+  }
 
   return db.bill.create({
     data: {
@@ -76,14 +89,20 @@ export async function createBill(
       operatorId,
       date,
       subtotal,
-      cgst,
-      sgst,
-      total: subtotal,
+      gstAmount: totalGst,
+      cgstAmount,
+      sgstAmount,
+      total,
       paymentMode,
-      upiRef: options?.upiRef,
+      paymentStatus: paymentMode === "CASH" ? "CONFIRMED" : "PENDING",
+      upiTransactionRef: options?.upiTransactionRef,
       cashAmount: options?.cashAmount,
       upiAmount: options?.upiAmount,
       orderChannel: options?.orderChannel || "WALK_IN",
+      channelOrderId: options?.channelOrderId,
+      channelCommissionRate: options?.channelCommissionRate,
+      channelCommission,
+      netRevenue,
       customerName,
       customerPhone,
       customerId: options?.customerId,
@@ -114,6 +133,7 @@ export async function getDaySummary(kioskId: string, date: Date) {
   const mixedRevenue = bills
     .filter((b) => b.paymentMode === "MIXED")
     .reduce((sum, b) => sum + b.total, 0);
+  const totalGst = bills.reduce((sum, b) => sum + b.gstAmount, 0);
 
   return {
     totalBills: bills.length,
@@ -121,5 +141,6 @@ export async function getDaySummary(kioskId: string, date: Date) {
     cashRevenue,
     upiRevenue,
     mixedRevenue,
+    totalGst,
   };
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, operatorProcedure, ownerProcedure } from "../trpc";
 import {
   recordCollection,
-  verifyCollection,
+  markDeposited,
   getCollectionSummary,
   calculateExpectedCash,
 } from "../services/cash-collection.service";
@@ -19,8 +19,8 @@ export const cashCollectionRouter = createTRPCRouter({
       z.object({
         kioskId: z.string(),
         date: z.date(),
-        collectedCash: z.number().min(0),
-        notes: z.string().optional(),
+        actualCash: z.number().min(0),
+        shortageReason: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -28,15 +28,15 @@ export const cashCollectionRouter = createTRPCRouter({
         input.kioskId,
         ctx.session.user.id,
         input.date,
-        input.collectedCash,
-        input.notes
+        input.actualCash,
+        input.shortageReason
       );
     }),
 
-  verify: ownerProcedure
-    .input(z.object({ collectionId: z.string() }))
+  markDeposited: ownerProcedure
+    .input(z.object({ collectionId: z.string(), bankDepositRef: z.string() }))
     .mutation(async ({ input }) => {
-      return verifyCollection(input.collectionId);
+      return markDeposited(input.collectionId, input.bankDepositRef);
     }),
 
   list: ownerProcedure

@@ -65,7 +65,7 @@ export default function CustomersPage() {
                 <IndianRupee className="h-4 w-4 text-green-600" />
                 <span className="text-sm text-muted-foreground">Total Revenue</span>
               </div>
-              <p className="text-2xl font-bold mt-1">{formatRupee(stats.data.totalSpent)}</p>
+              <p className="text-2xl font-bold mt-1">{formatRupee(stats.data.totalSpend)}</p>
             </CardContent>
           </Card>
         </div>
@@ -106,11 +106,11 @@ export default function CustomersPage() {
                     <TableCell>{c.phone}</TableCell>
                     <TableCell className="text-right">
                       <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-sm font-medium">
-                        {c.points} pts
+                        {c.loyaltyPts} pts
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-medium">{formatRupee(c.totalSpent)}</TableCell>
-                    <TableCell className="text-right">{c.visitCount}</TableCell>
+                    <TableCell className="text-right font-medium">{formatRupee(c.totalSpend)}</TableCell>
+                    <TableCell className="text-right">{c.totalVisits}</TableCell>
                   </TableRow>
                 ))}
                 {customers.data?.length === 0 && (

@@ -63,7 +63,7 @@ export default function CompliancePage() {
       kioskId,
       type: docType,
       documentNo,
-      issuedDate: new Date(issuedDate),
+      issueDate: new Date(issuedDate),
       expiryDate: new Date(expiryDate),
     });
   };
@@ -197,7 +197,7 @@ export default function CompliancePage() {
                     <TableCell className="font-medium">{doc.kiosk.name}</TableCell>
                     <TableCell>{doc.type}</TableCell>
                     <TableCell>{doc.documentNo}</TableCell>
-                    <TableCell>{formatDate(doc.issuedDate)}</TableCell>
+                    <TableCell>{formatDate(doc.issueDate)}</TableCell>
                     <TableCell>{formatDate(doc.expiryDate)}</TableCell>
                     <TableCell>
                       {isExpired(doc.expiryDate) ? (

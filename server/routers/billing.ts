@@ -9,10 +9,12 @@ export const billingRouter = createTRPCRouter({
         kioskId: z.string(),
         date: z.date(),
         paymentMode: z.enum(["CASH", "UPI", "MIXED"]).default("CASH"),
-        upiRef: z.string().optional(),
+        upiTransactionRef: z.string().optional(),
         cashAmount: z.number().optional(),
         upiAmount: z.number().optional(),
-        orderChannel: z.enum(["WALK_IN", "SWIGGY", "ZOMATO", "PHONE"]).default("WALK_IN"),
+        orderChannel: z.enum(["WALK_IN", "SWIGGY", "ZOMATO", "PHONE", "OTHER"]).default("WALK_IN"),
+        channelOrderId: z.string().optional(),
+        channelCommissionRate: z.number().optional(),
         customerName: z.string().optional(),
         customerPhone: z.string().optional(),
         customerId: z.string().optional(),
@@ -37,10 +39,12 @@ export const billingRouter = createTRPCRouter({
         input.customerPhone,
         input.notes,
         {
-          upiRef: input.upiRef,
+          upiTransactionRef: input.upiTransactionRef,
           cashAmount: input.cashAmount,
           upiAmount: input.upiAmount,
           orderChannel: input.orderChannel,
+          channelOrderId: input.channelOrderId,
+          channelCommissionRate: input.channelCommissionRate,
           customerId: input.customerId,
         }
       );

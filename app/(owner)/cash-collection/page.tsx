@@ -43,22 +43,13 @@ export default function CashCollectionPage() {
     endDate: new Date(endDate),
   });
 
-  const verifyMutation = trpc.cashCollection.verify.useMutation({
+  const depositMutation = trpc.cashCollection.markDeposited.useMutation({
     onSuccess: () => {
-      toast.success("Collection verified");
+      toast.success("Marked as deposited");
       collections.refetch();
     },
     onError: (err) => toast.error(err.message),
   });
-
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "PENDING": return <Badge variant="outline">Pending</Badge>;
-      case "COLLECTED": return <Badge className="bg-blue-100 text-blue-700">Collected</Badge>;
-      case "VERIFIED": return <Badge className="bg-green-100 text-green-700">Verified</Badge>;
-      default: return <Badge>{status}</Badge>;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -83,19 +74,19 @@ export default function CashCollectionPage() {
             <CardContent className="pt-4">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-blue-600" />
-                <span className="text-sm text-muted-foreground">Collected</span>
+                <span className="text-sm text-muted-foreground">Actual</span>
               </div>
-              <p className="text-xl font-bold mt-1">{formatRupee(collections.data.totalCollected)}</p>
+              <p className="text-xl font-bold mt-1">{formatRupee(collections.data.totalActual)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-orange-600" />
-                <span className="text-sm text-muted-foreground">Difference</span>
+                <span className="text-sm text-muted-foreground">Total Shortage</span>
               </div>
-              <p className={`text-xl font-bold mt-1 ${collections.data.totalDifference < 0 ? "text-red-600" : "text-green-600"}`}>
-                {formatRupee(collections.data.totalDifference)}
+              <p className={`text-xl font-bold mt-1 ${collections.data.totalShortage > 0 ? "text-red-600" : "text-green-600"}`}>
+                {formatRupee(collections.data.totalShortage)}
               </p>
             </CardContent>
           </Card>
@@ -103,9 +94,9 @@ export default function CashCollectionPage() {
             <CardContent className="pt-4">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-600" />
-                <span className="text-sm text-muted-foreground">Shortages</span>
+                <span className="text-sm text-muted-foreground">Shortage Count</span>
               </div>
-              <p className="text-xl font-bold mt-1">{collections.data.shortages}</p>
+              <p className="text-xl font-bold mt-1">{collections.data.shortageCount}</p>
             </CardContent>
           </Card>
         </div>
@@ -144,11 +135,11 @@ export default function CashCollectionPage() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Kiosk</TableHead>
-                  <TableHead>Operator</TableHead>
+                  <TableHead>Collected By</TableHead>
                   <TableHead className="text-right">Expected</TableHead>
-                  <TableHead className="text-right">Collected</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actual</TableHead>
+                  <TableHead className="text-right">Shortage</TableHead>
+                  <TableHead>Deposited</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -157,22 +148,28 @@ export default function CashCollectionPage() {
                   <TableRow key={c.id}>
                     <TableCell>{formatDate(c.date)}</TableCell>
                     <TableCell className="font-medium">{c.kiosk.name}</TableCell>
-                    <TableCell>{c.operator.name}</TableCell>
+                    <TableCell>{c.collectedBy.name}</TableCell>
                     <TableCell className="text-right">{formatRupee(c.expectedCash)}</TableCell>
-                    <TableCell className="text-right">{formatRupee(c.collectedCash)}</TableCell>
-                    <TableCell className={`text-right font-medium ${c.difference < 0 ? "text-red-600" : "text-green-600"}`}>
-                      {formatRupee(c.difference)}
+                    <TableCell className="text-right">{formatRupee(c.actualCash)}</TableCell>
+                    <TableCell className={`text-right font-medium ${c.shortage > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {formatRupee(c.shortage)}
                     </TableCell>
-                    <TableCell>{statusBadge(c.status)}</TableCell>
                     <TableCell>
-                      {c.status === "COLLECTED" && (
+                      {c.depositedToBank ? (
+                        <Badge className="bg-green-100 text-green-700">Yes</Badge>
+                      ) : (
+                        <Badge variant="outline">No</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {!c.depositedToBank && (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => verifyMutation.mutate({ collectionId: c.id })}
-                          disabled={verifyMutation.isPending}
+                          onClick={() => depositMutation.mutate({ collectionId: c.id, bankDepositRef: "manual" })}
+                          disabled={depositMutation.isPending}
                         >
-                          Verify
+                          Mark Deposited
                         </Button>
                       )}
                     </TableCell>
