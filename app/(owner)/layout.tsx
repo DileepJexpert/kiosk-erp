@@ -21,6 +21,14 @@ import {
   LogOut,
   ChevronLeft,
   Store,
+  CalendarCheck,
+  Banknote,
+  CreditCard,
+  Users,
+  Bell,
+  Shield,
+  Heart,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -30,6 +38,14 @@ const navItems = [
   { label: "Inventory", href: "/inventory", icon: Package },
   { label: "Billing", href: "/billing", icon: Receipt },
   { label: "Salary", href: "/salary", icon: Wallet },
+  { label: "Attendance", href: "/attendance", icon: CalendarCheck },
+  { label: "Cash Collection", href: "/cash-collection", icon: Banknote },
+  { label: "Expenses", href: "/expenses", icon: CreditCard },
+  { label: "Suppliers", href: "/suppliers", icon: Users },
+  { label: "Alerts", href: "/alerts", icon: Bell },
+  { label: "Compliance", href: "/compliance", icon: Shield },
+  { label: "Customers", href: "/customers", icon: Heart },
+  { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Templates", href: "/templates", icon: FileText },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

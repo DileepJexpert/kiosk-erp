@@ -7,7 +7,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Minus, Plus, ShoppingCart, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 
 interface CartItem {
@@ -21,14 +30,50 @@ interface CartItem {
 export default function SellPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMode, setPaymentMode] = useState<"CASH" | "UPI" | "MIXED">("CASH");
-  const utils = trpc.useUtils();
+  const [upiRef, setUpiRef] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
+  const [upiAmount, setUpiAmount] = useState("");
+  const [orderChannel, setOrderChannel] = useState<"WALK_IN" | "SWIGGY" | "ZOMATO" | "PHONE">("WALK_IN");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [showCustomer, setShowCustomer] = useState(false);
 
   const items = trpc.item.listSellable.useQuery();
   const profile = trpc.user.getProfile.useQuery();
 
+  const customerLookup = trpc.customer.findByPhone.useQuery(
+    { phone: customerPhone },
+    { enabled: customerPhone.length === 10 }
+  );
+
+  const createCustomer = trpc.customer.create.useMutation();
+  const addPoints = trpc.customer.addPoints.useMutation();
+
   const createBill = trpc.billing.create.useMutation({
-    onSuccess: () => {
+    onSuccess: async (bill) => {
+      // Add loyalty points if customer exists
+      if (customerLookup.data) {
+        try {
+          await addPoints.mutateAsync({
+            customerId: customerLookup.data.id,
+            billAmount: bill.total,
+          });
+        } catch {}
+      } else if (customerPhone.length === 10) {
+        try {
+          const customer = await createCustomer.mutateAsync({ phone: customerPhone });
+          await addPoints.mutateAsync({
+            customerId: customer.id,
+            billAmount: bill.total,
+          });
+        } catch {}
+      }
+
       setCart([]);
+      setUpiRef("");
+      setCashAmount("");
+      setUpiAmount("");
+      setCustomerPhone("");
+      setShowCustomer(false);
       toast.success("Bill created successfully!");
     },
     onError: (err) => toast.error(err.message),
@@ -70,6 +115,12 @@ export default function SellPage() {
       kioskId: profile.data.assignedKiosk.id,
       date: today,
       paymentMode,
+      upiRef: upiRef || undefined,
+      cashAmount: cashAmount ? parseFloat(cashAmount) : undefined,
+      upiAmount: upiAmount ? parseFloat(upiAmount) : undefined,
+      orderChannel,
+      customerPhone: customerPhone || undefined,
+      customerId: customerLookup.data?.id,
       items: cart.map((c) => ({
         itemId: c.itemId,
         quantity: c.quantity,
@@ -80,45 +131,58 @@ export default function SellPage() {
 
   return (
     <div className="space-y-4 pb-4">
-      {/* Item Grid */}
-      <div>
-        <h1 className="text-xl font-bold mb-3">Sell</h1>
-        {items.isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-24" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {items.data?.map((item) => {
-              const inCart = cart.find((c) => c.itemId === item.id);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => addToCart(item)}
-                  className={`relative p-4 rounded-xl border-2 text-left transition-all active:scale-95 ${
-                    inCart
-                      ? "border-orange-500 bg-orange-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <p className="font-medium text-sm leading-tight">{item.name}</p>
-                  <p className="text-lg font-bold text-orange-600 mt-1">
-                    {formatRupee(item.sellPrice)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">per {item.unit}</p>
-                  {inCart && (
-                    <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs font-bold h-6 w-6 rounded-full flex items-center justify-center">
-                      {inCart.quantity}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+      {/* Order Channel */}
+      <div className="flex items-center gap-2">
+        <h1 className="text-xl font-bold flex-1">Sell</h1>
+        <Select value={orderChannel} onValueChange={(v) => setOrderChannel(v as any)}>
+          <SelectTrigger className="w-32 h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="WALK_IN">Walk-in</SelectItem>
+            <SelectItem value="SWIGGY">Swiggy</SelectItem>
+            <SelectItem value="ZOMATO">Zomato</SelectItem>
+            <SelectItem value="PHONE">Phone</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Item Grid */}
+      {items.isLoading ? (
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {items.data?.map((item) => {
+            const inCart = cart.find((c) => c.itemId === item.id);
+            return (
+              <button
+                key={item.id}
+                onClick={() => addToCart(item)}
+                className={`relative p-4 rounded-xl border-2 text-left transition-all active:scale-95 ${
+                  inCart
+                    ? "border-orange-500 bg-orange-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <p className="font-medium text-sm leading-tight">{item.name}</p>
+                <p className="text-lg font-bold text-orange-600 mt-1">
+                  {formatRupee(item.sellPrice)}
+                </p>
+                <p className="text-xs text-muted-foreground">per {item.unit}</p>
+                {inCart && (
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs font-bold h-6 w-6 rounded-full flex items-center justify-center">
+                    {inCart.quantity}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Cart */}
       {cart.length > 0 && (
@@ -180,6 +244,68 @@ export default function SellPage() {
                   {mode}
                 </Button>
               ))}
+            </div>
+
+            {/* UPI Reference */}
+            {(paymentMode === "UPI" || paymentMode === "MIXED") && (
+              <div>
+                <Input
+                  placeholder="UPI Transaction Ref"
+                  value={upiRef}
+                  onChange={(e) => setUpiRef(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+            )}
+
+            {/* Mixed amounts */}
+            {paymentMode === "MIXED" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Cash (₹)</Label>
+                  <Input
+                    type="number"
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">UPI (₹)</Label>
+                  <Input
+                    type="number"
+                    value={upiAmount}
+                    onChange={(e) => setUpiAmount(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Customer loyalty */}
+            <div>
+              <button
+                onClick={() => setShowCustomer(!showCustomer)}
+                className="text-xs text-blue-600 flex items-center gap-1"
+              >
+                <User className="h-3 w-3" />
+                {showCustomer ? "Hide" : "Add"} customer for loyalty points
+              </button>
+              {showCustomer && (
+                <div className="mt-2">
+                  <Input
+                    placeholder="Customer phone (10 digits)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    className="text-sm"
+                  />
+                  {customerLookup.data && (
+                    <p className="text-xs text-green-600 mt-1">
+                      {customerLookup.data.name || "Customer"} — {customerLookup.data.points} pts
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Total and submit */}

@@ -1,11 +1,27 @@
 import { db } from "@/lib/db";
-import { PaymentMode } from "@prisma/client";
+import { PaymentMode, OrderChannel } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 export interface BillItemInput {
   itemId: string;
   quantity: number;
   unitPrice: number;
+}
+
+export interface CreateBillOptions {
+  kioskId: string;
+  operatorId: string;
+  date: Date;
+  items: BillItemInput[];
+  paymentMode?: PaymentMode;
+  upiRef?: string;
+  cashAmount?: number;
+  upiAmount?: number;
+  orderChannel?: OrderChannel;
+  customerName?: string;
+  customerPhone?: string;
+  customerId?: string;
+  notes?: string;
 }
 
 export async function createBill(
@@ -16,7 +32,8 @@ export async function createBill(
   paymentMode: PaymentMode = "CASH",
   customerName?: string,
   customerPhone?: string,
-  notes?: string
+  notes?: string,
+  options?: Partial<CreateBillOptions>
 ) {
   if (items.length === 0) {
     throw new TRPCError({
@@ -25,25 +42,51 @@ export async function createBill(
     });
   }
 
-  // Calculate totals
-  const billItems = items.map((item) => ({
-    itemId: item.itemId,
-    quantity: item.quantity,
-    unitPrice: item.unitPrice,
-    lineTotal: item.quantity * item.unitPrice,
-  }));
+  // Fetch item GST rates
+  const itemIds = items.map((i) => i.itemId);
+  const dbItems = await db.item.findMany({
+    where: { id: { in: itemIds } },
+    select: { id: true, gstPercent: true },
+  });
+  const gstMap = new Map(dbItems.map((i) => [i.id, i.gstPercent]));
 
-  const total = billItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  // Calculate totals with GST
+  const billItems = items.map((item) => {
+    const lineTotal = item.quantity * item.unitPrice;
+    const gstPercent = gstMap.get(item.itemId) || 5;
+    const gstAmount = Math.round((lineTotal * gstPercent) / (100 + gstPercent) * 100) / 100;
+    return {
+      itemId: item.itemId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal,
+      gstPercent,
+      gstAmount,
+    };
+  });
+
+  const subtotal = billItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const totalGst = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
+  const cgst = Math.round((totalGst / 2) * 100) / 100;
+  const sgst = Math.round((totalGst / 2) * 100) / 100;
 
   return db.bill.create({
     data: {
       kioskId,
       operatorId,
       date,
-      total,
+      subtotal,
+      cgst,
+      sgst,
+      total: subtotal,
       paymentMode,
+      upiRef: options?.upiRef,
+      cashAmount: options?.cashAmount,
+      upiAmount: options?.upiAmount,
+      orderChannel: options?.orderChannel || "WALK_IN",
       customerName,
       customerPhone,
+      customerId: options?.customerId,
       notes,
       items: {
         create: billItems,

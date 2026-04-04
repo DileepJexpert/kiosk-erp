@@ -9,8 +9,13 @@ export const billingRouter = createTRPCRouter({
         kioskId: z.string(),
         date: z.date(),
         paymentMode: z.enum(["CASH", "UPI", "MIXED"]).default("CASH"),
+        upiRef: z.string().optional(),
+        cashAmount: z.number().optional(),
+        upiAmount: z.number().optional(),
+        orderChannel: z.enum(["WALK_IN", "SWIGGY", "ZOMATO", "PHONE"]).default("WALK_IN"),
         customerName: z.string().optional(),
         customerPhone: z.string().optional(),
+        customerId: z.string().optional(),
         notes: z.string().optional(),
         items: z.array(
           z.object({
@@ -30,7 +35,14 @@ export const billingRouter = createTRPCRouter({
         input.paymentMode,
         input.customerName,
         input.customerPhone,
-        input.notes
+        input.notes,
+        {
+          upiRef: input.upiRef,
+          cashAmount: input.cashAmount,
+          upiAmount: input.upiAmount,
+          orderChannel: input.orderChannel,
+          customerId: input.customerId,
+        }
       );
     }),
 

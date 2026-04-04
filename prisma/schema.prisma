@@ -48,6 +48,43 @@ enum SeasonType {
   ALL_YEAR
 }
 
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+enum ExpenseCategory {
+  GAS
+  TRANSPORT
+  CLEANING
+  REPAIR
+  SUPPLIES
+  OTHER
+}
+
+enum OrderChannel {
+  WALK_IN
+  SWIGGY
+  ZOMATO
+  PHONE
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum PaymentStatus {
+  PENDING
+  COLLECTED
+  DEPOSITED
+  VERIFIED
+}
+
 // ──────────────────────── USERS ────────────────────────
 
 model User {
@@ -60,6 +97,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  baseSalary        Float?
+  bankAccount       String?
+  ifscCode          String?
+
   assignedKiosk     Kiosk?           @relation("KioskOperator")
   managedKiosks     Kiosk[]          @relation("KioskManager")
   dispatchesCreated Dispatch[]       @relation("DispatchCreator")
@@ -67,6 +108,9 @@ model User {
   bills             Bill[]
   salaryRecords     SalaryRecord[]
   advances          Advance[]
+  attendances       Attendance[]
+  cashCollections   CashCollection[]
+  expenses          Expense[]
 }
 
 // ──────────────────────── KIOSKS ───────────────────────
@@ -90,9 +134,18 @@ model Kiosk {
   activeTemplateId String?
   activeTemplate   MenuTemplate? @relation("ActiveTemplate", fields: [activeTemplateId], references: [id])
 
-  dispatches      Dispatch[]
-  bills           Bill[]
-  reconciliations Reconciliation[]
+  gstNumber         String?
+  fssaiLicense      String?
+  fssaiExpiry       DateTime?
+
+  dispatches        Dispatch[]
+  bills             Bill[]
+  reconciliations   Reconciliation[]
+  attendances       Attendance[]
+  cashCollections   CashCollection[]
+  expenses          Expense[]
+  alerts            Alert[]
+  complianceDocs    ComplianceDocument[]
 }
 
 // ──────────────────────── ITEMS ────────────────────────
@@ -112,11 +165,18 @@ model Item {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  hsnCode           String?
+  gstPercent        Float            @default(5)
+  minStock          Int?
+  maxStock          Int?
+
   variants          ItemVariant[]
   dispatchItems     DispatchItem[]
   billItems         BillItem[]
   reconItems        ReconItem[]
   menuTemplateItems MenuTemplateItem[]
+  purchaseItems     PurchaseItem[]
+  centralStock      CentralStock?
 }
 
 model ItemVariant {
@@ -199,33 +259,44 @@ model DispatchItem {
 // ──────────────────────── BILLING ──────────────────────
 
 model Bill {
-  id            String      @id @default(cuid())
-  billNumber    Int         @default(autoincrement())
-  date          DateTime    @db.Date
+  id            String       @id @default(cuid())
+  billNumber    Int          @default(autoincrement())
+  date          DateTime     @db.Date
+  subtotal      Float        @default(0)
+  cgst          Float        @default(0)
+  sgst          Float        @default(0)
   total         Float
-  paymentMode   PaymentMode @default(CASH)
+  paymentMode   PaymentMode  @default(CASH)
+  upiRef        String?
+  cashAmount    Float?
+  upiAmount     Float?
+  orderChannel  OrderChannel @default(WALK_IN)
   customerName  String?
   customerPhone String?
   notes         String?
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime     @default(now())
 
   kioskId    String
   kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
   operatorId String
   operator   User   @relation(fields: [operatorId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
 
   items BillItem[]
 }
 
 model BillItem {
-  id        String @id @default(cuid())
-  quantity  Int
-  unitPrice Float
-  lineTotal Float
-  billId    String
-  bill      Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
-  itemId    String
-  item      Item   @relation(fields: [itemId], references: [id])
+  id         String @id @default(cuid())
+  quantity   Int
+  unitPrice  Float
+  lineTotal  Float
+  gstPercent Float  @default(5)
+  gstAmount  Float  @default(0)
+  billId     String
+  bill       Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item   @relation(fields: [itemId], references: [id])
 }
 
 // ──────────────────────── RECONCILIATION ───────────────
@@ -298,4 +369,183 @@ model Advance {
 
   operatorId String
   operator   User   @relation(fields: [operatorId], references: [id])
+}
+
+// ──────────────────────── ATTENDANCE ──────────────────────
+
+model Attendance {
+  id        String           @id @default(cuid())
+  date      DateTime         @db.Date
+  status    AttendanceStatus @default(PRESENT)
+  checkIn   DateTime?
+  checkOut  DateTime?
+  notes     String?
+  createdAt DateTime         @default(now())
+
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+  kioskId    String
+  kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
+
+  @@unique([operatorId, date])
+}
+
+// ──────────────────────── CASH COLLECTION ─────────────────
+
+model CashCollection {
+  id              String        @id @default(cuid())
+  date            DateTime      @db.Date
+  expectedCash    Float
+  collectedCash   Float
+  difference      Float         @default(0)
+  status          PaymentStatus @default(PENDING)
+  collectedAt     DateTime?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+  kioskId    String
+  kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
+
+  @@unique([kioskId, date])
+}
+
+// ──────────────────────── EXPENSES ─────────────────────────
+
+model Expense {
+  id          String          @id @default(cuid())
+  date        DateTime        @db.Date
+  amount      Float
+  category    ExpenseCategory
+  description String
+  receiptUrl  String?
+  approved    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  operatorId String
+  operator   User   @relation(fields: [operatorId], references: [id])
+  kioskId    String
+  kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
+}
+
+// ──────────────────────── SUPPLIERS & PURCHASES ───────────
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  gstNumber String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+model Purchase {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  invoiceNo   String?
+  totalAmount Float
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  items PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String  @id @default(cuid())
+  quantity   Int
+  unitCost   Float
+  lineTotal  Float
+
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id])
+}
+
+model CentralStock {
+  id       String @id @default(cuid())
+  quantity Int    @default(0)
+  itemId   String @unique
+  item     Item   @relation(fields: [itemId], references: [id])
+
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────── ALERTS ──────────────────────────
+
+model Alert {
+  id         String        @id @default(cuid())
+  type       String
+  severity   AlertSeverity @default(MEDIUM)
+  message    String
+  data       Json?
+  isRead     Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  kioskId String?
+  kiosk   Kiosk?  @relation(fields: [kioskId], references: [id])
+}
+
+// ──────────────────────── COMPLIANCE ──────────────────────
+
+model ComplianceDocument {
+  id         String   @id @default(cuid())
+  type       String
+  documentNo String
+  issuedDate DateTime
+  expiryDate DateTime
+  fileUrl    String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  kioskId String
+  kiosk   Kiosk  @relation(fields: [kioskId], references: [id])
+}
+
+// ──────────────────────── CUSTOMER & LOYALTY ──────────────
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String?
+  phone       String   @unique
+  points      Int      @default(0)
+  totalSpent  Float    @default(0)
+  visitCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bills       Bill[]
+  redemptions LoyaltyRedemption[]
+}
+
+model LoyaltyRedemption {
+  id        String   @id @default(cuid())
+  points    Int
+  discount  Float
+  createdAt DateTime @default(now())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+}
+
+// ──────────────────────── WEATHER LOG ─────────────────────
+
+model WeatherLog {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  tempMin     Float?
+  tempMax     Float?
+  condition   String?
+  humidity    Float?
+  createdAt   DateTime @default(now())
+
+  @@unique([date])
 }

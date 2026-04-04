@@ -1,23 +1,38 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Store, ShoppingCart, ClipboardCheck, Wallet, LogOut } from "lucide-react";
+import { getLanguage, setLanguage } from "@/lib/i18n";
+import { Store, ShoppingCart, ClipboardCheck, Wallet, LogOut, CalendarCheck, Banknote, MoreHorizontal, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const tabs = [
   { label: "My Kiosk", href: "/my-kiosk", icon: Store },
   { label: "Sell", href: "/sell", icon: ShoppingCart },
   { label: "Reconcile", href: "/my-reconcile", icon: ClipboardCheck },
-  { label: "Salary", href: "/my-salary", icon: Wallet },
+  { label: "Cash", href: "/my-cash", icon: Banknote },
+  { label: "More", href: "/my-more", icon: MoreHorizontal },
 ];
 
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const [lang, setLang] = useState<"en" | "hi">("en");
+
+  useEffect(() => {
+    setLang(getLanguage());
+  }, []);
+
+  const toggleLang = () => {
+    const newLang = lang === "en" ? "hi" : "en";
+    setLanguage(newLang);
+    setLang(newLang);
+    window.location.reload();
+  };
 
   if (status === "loading") {
     return (
@@ -40,6 +55,16 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
           <span className="font-bold text-base">Kiosk ERP</span>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleLang}
+            title={lang === "en" ? "हिंदी में बदलें" : "Switch to English"}
+          >
+            <Languages className="h-4 w-4" />
+          </Button>
+          <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{lang === "hi" ? "हि" : "EN"}</span>
           <span className="text-sm font-medium">{session.user?.name}</span>
           <Button
             variant="ghost"

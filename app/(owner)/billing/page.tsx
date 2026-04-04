@@ -147,6 +147,24 @@ export default function BillingPage() {
               </Table>
 
               <div className="border-t pt-3 space-y-1">
+                {receipt.data.subtotal > 0 && receipt.data.subtotal !== receipt.data.total && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{formatRupee(receipt.data.subtotal)}</span>
+                  </div>
+                )}
+                {(receipt.data.cgst > 0 || receipt.data.sgst > 0) && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">CGST</span>
+                      <span>{formatRupee(receipt.data.cgst)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">SGST</span>
+                      <span>{formatRupee(receipt.data.sgst)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
                   <span>{formatRupee(receipt.data.total)}</span>
@@ -157,7 +175,25 @@ export default function BillingPage() {
                     {receipt.data.paymentMode}
                   </Badge>
                 </div>
+                {receipt.data.upiRef && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">UPI Ref</span>
+                    <span className="font-mono text-xs">{receipt.data.upiRef}</span>
+                  </div>
+                )}
+                {receipt.data.orderChannel && receipt.data.orderChannel !== "WALK_IN" && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Channel</span>
+                    <span>{receipt.data.orderChannel}</span>
+                  </div>
+                )}
               </div>
+
+              {receipt.data.kiosk.gstNumber && (
+                <div className="text-center text-xs text-muted-foreground border-t pt-2">
+                  <p>GSTIN: {receipt.data.kiosk.gstNumber}</p>
+                </div>
+              )}
 
               <Button className="w-full print:hidden" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-1" /> Print
