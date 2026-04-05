@@ -182,6 +182,13 @@ model Item {
   minStock          Int?
   maxStock          Int?
 
+  // Smart purchase entry fields
+  barcode              String?
+  aliases              String[]         @default([])
+  lastPurchasePrice    Float?
+  avgPurchasePrice     Float?
+  preferredSupplierId  String?
+
   variants          ItemVariant[]
   dispatchItems     DispatchItem[]
   billItems         BillItem[]
@@ -474,6 +481,7 @@ model Supplier {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   purchases    Purchase[]
+  templates    PurchaseTemplate[]
 }
 
 model Purchase {
@@ -484,6 +492,20 @@ model Purchase {
   paymentStatus String   @default("UNPAID")
   notes         String?
   createdAt     DateTime @default(now())
+
+  // Smart entry fields
+  entryMethod      String    @default("MANUAL")
+  billPhotoUrl     String?
+  billPhotoKey     String?
+  aiExtractedRaw   Json?
+  aiConfidence     Float?
+  voiceTranscript  String?
+
+  // Approval flow
+  approvalStatus   String    @default("AUTO_APPROVED")
+  approvedById     String?
+  approvedAt       DateTime?
+  rejectionReason  String?
 
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
@@ -575,6 +597,33 @@ model LoyaltyRedemption {
   billId     String
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
+}
+
+// ──────────────────────── PURCHASE TEMPLATES ─────────────────
+
+model PurchaseTemplate {
+  id         String    @id @default(cuid())
+  name       String
+  supplierId String
+  supplier   Supplier  @relation(fields: [supplierId], references: [id])
+  items      Json      // [{itemId, defaultQty, lastPrice}]
+  usageCount Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// ──────────────────────── ITEM ALIAS (GLOBAL) ────────────────
+
+model ItemAliasGlobal {
+  id        String @id @default(cuid())
+  alias     String
+  canonical String
+  category  String
+  language  String @default("hi")
+
+  @@unique([alias, category])
+  @@index([alias])
 }
 
 // ──────────────────────── WEATHER LOG ─────────────────────
