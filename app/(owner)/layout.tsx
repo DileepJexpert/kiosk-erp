@@ -31,6 +31,7 @@ import {
   BarChart3,
   Trophy,
   IndianRupee,
+  ScanLine,
 } from "lucide-react";
 
 const navItems = [
@@ -43,6 +44,7 @@ const navItems = [
   { label: "Salary", href: "/salary", icon: Wallet },
   { label: "Attendance", href: "/attendance", icon: CalendarCheck },
   { label: "Cash Collection", href: "/cash-collection", icon: Banknote },
+  { label: "Purchases", href: "/purchases", icon: ScanLine },
   { label: "Expenses", href: "/expenses", icon: CreditCard },
   { label: "Suppliers", href: "/suppliers", icon: Users },
   { label: "Performance", href: "/performance", icon: Trophy },

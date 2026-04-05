@@ -7,12 +7,13 @@ import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getLanguage, setLanguage } from "@/lib/i18n";
-import { Store, ShoppingCart, ClipboardCheck, Wallet, LogOut, CalendarCheck, Banknote, MoreHorizontal, Languages } from "lucide-react";
+import { Store, ShoppingCart, ClipboardCheck, LogOut, Banknote, MoreHorizontal, Languages, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const tabs = [
   { label: "My Kiosk", href: "/my-kiosk", icon: Store },
   { label: "Sell", href: "/sell", icon: ShoppingCart },
+  { label: "Stock", href: "/my-stock", icon: Package },
   { label: "Reconcile", href: "/my-reconcile", icon: ClipboardCheck },
   { label: "Cash", href: "/my-cash", icon: Banknote },
   { label: "More", href: "/my-more", icon: MoreHorizontal },

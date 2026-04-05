@@ -18,6 +18,7 @@ import { customerRouter } from "./routers/customer";
 import { performanceRouter } from "./routers/performance";
 import { weatherRouter } from "./routers/weather";
 import { gstRouter } from "./routers/gst";
+import { purchaseSmartRouter } from "./routers/purchase-smart";
 
 export const appRouter = createTRPCRouter({
   kiosk: kioskRouter,
@@ -39,6 +40,7 @@ export const appRouter = createTRPCRouter({
   performance: performanceRouter,
   weather: weatherRouter,
   gst: gstRouter,
+  purchaseSmart: purchaseSmartRouter,
 });
 
 export type AppRouter = typeof appRouter;

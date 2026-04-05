@@ -84,6 +84,24 @@ export const supplierRouter = createTRPCRouter({
           });
         }
 
+        // Auto-update item prices
+        for (const item of input.items) {
+          const existing = await tx.item.findUnique({
+            where: { id: item.itemId },
+            select: { avgPurchasePrice: true },
+          });
+          const currentAvg = existing?.avgPurchasePrice || item.unitPrice;
+          const newAvg = currentAvg * 0.8 + item.unitPrice * 0.2;
+          await tx.item.update({
+            where: { id: item.itemId },
+            data: {
+              lastPurchasePrice: item.unitPrice,
+              avgPurchasePrice: Math.round(newAvg * 100) / 100,
+              preferredSupplierId: input.supplierId,
+            },
+          });
+        }
+
         return purchase;
       });
     }),
