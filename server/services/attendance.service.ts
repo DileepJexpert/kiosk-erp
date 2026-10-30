@@ -126,7 +126,7 @@ export async function getMonthlyAttendance(operatorId: string, month: string) {
 }
 
 // Haversine formula for distance between two lat/lng points in meters
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000; // Earth radius in meters
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -138,3 +138,4 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
       Math.sin(dLng / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+

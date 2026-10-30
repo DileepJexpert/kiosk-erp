@@ -118,6 +118,9 @@ model User {
   cashCollections   CashCollection[]
   expenses          Expense[]
   alerts            Alert[]
+
+  @@index([role, isActive])
+  @@index([phone])
 }
 
 // ──────────────────────── KIOSKS ───────────────────────
@@ -158,6 +161,9 @@ model Kiosk {
   alerts            Alert[]
   complianceDocs    ComplianceDocument[]
   weatherLogs       WeatherLog[]
+
+  @@index([isActive])
+  @@index([managerId])
 }
 
 // ──────────────────────── ITEMS ────────────────────────
@@ -196,6 +202,10 @@ model Item {
   menuTemplateItems MenuTemplateItem[]
   purchaseItems     PurchaseItem[]
   centralStock      CentralStock?
+
+  @@index([category, isActive])
+  @@index([barcode])
+  @@index([name])
 }
 
 model ItemVariant {
@@ -206,6 +216,8 @@ model ItemVariant {
   itemId    String
   item      Item    @relation(fields: [itemId], references: [id])
   isActive  Boolean @default(true)
+
+  @@index([itemId, isActive])
 }
 
 // ──────────────────────── SEASONS & MENU TEMPLATES ────
@@ -218,6 +230,8 @@ model Season {
   endDate   DateTime
   isActive  Boolean    @default(false)
   templates MenuTemplate[]
+
+  @@index([isActive, startDate, endDate])
 }
 
 model MenuTemplate {
@@ -230,6 +244,9 @@ model MenuTemplate {
 
   items        MenuTemplateItem[]
   activeKiosks Kiosk[] @relation("ActiveTemplate")
+
+  @@index([kioskType, isActive])
+  @@index([seasonId])
 }
 
 model MenuTemplateItem {
@@ -241,6 +258,7 @@ model MenuTemplateItem {
   defaultQty Int
 
   @@unique([templateId, itemId])
+  @@index([itemId])
 }
 
 // ──────────────────────── DISPATCH ─────────────────────
@@ -262,6 +280,9 @@ model Dispatch {
   reconciliation Reconciliation?
 
   @@unique([kioskId, date])
+  @@index([date])
+  @@index([status])
+  @@index([createdById])
 }
 
 model DispatchItem {
@@ -273,6 +294,7 @@ model DispatchItem {
   item       Item     @relation(fields: [itemId], references: [id])
 
   @@unique([dispatchId, itemId])
+  @@index([itemId])
 }
 
 // ──────────────────────── BILLING ──────────────────────
@@ -319,6 +341,15 @@ model Bill {
   customer   Customer? @relation(fields: [customerId], references: [id])
 
   items BillItem[]
+
+  @@index([kioskId, date])
+  @@index([operatorId, date])
+  @@index([date])
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([orderChannel])
+  @@index([paymentMode])
+  @@index([paymentStatus])
 }
 
 model BillItem {
@@ -332,6 +363,9 @@ model BillItem {
   bill       Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
   itemId     String
   item       Item   @relation(fields: [itemId], references: [id])
+
+  @@index([billId])
+  @@index([itemId])
 }
 
 // ──────────────────────── RECONCILIATION ───────────────
@@ -352,6 +386,10 @@ model Reconciliation {
   operator   User     @relation(fields: [operatorId], references: [id])
 
   items ReconItem[]
+
+  @@index([kioskId, date])
+  @@index([operatorId, date])
+  @@index([date])
 }
 
 model ReconItem {
@@ -370,6 +408,7 @@ model ReconItem {
   item             Item           @relation(fields: [itemId], references: [id])
 
   @@unique([reconciliationId, itemId])
+  @@index([itemId])
 }
 
 // ──────────────────────── SALARY ───────────────────────
@@ -393,6 +432,7 @@ model SalaryRecord {
   operator   User   @relation(fields: [operatorId], references: [id])
 
   @@unique([operatorId, month])
+  @@index([month, status])
 }
 
 model Advance {
@@ -404,6 +444,9 @@ model Advance {
 
   operatorId String
   operator   User   @relation(fields: [operatorId], references: [id])
+
+  @@index([operatorId, date])
+  @@index([date])
 }
 
 // ──────────────────────── ATTENDANCE ──────────────────────
@@ -428,6 +471,9 @@ model Attendance {
   kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
 
   @@unique([operatorId, date])
+  @@index([kioskId, date])
+  @@index([date])
+  @@index([status])
 }
 
 // ──────────────────────── CASH COLLECTION ─────────────────
@@ -450,6 +496,8 @@ model CashCollection {
   kiosk         Kiosk  @relation(fields: [kioskId], references: [id])
 
   @@unique([kioskId, date])
+  @@index([date])
+  @@index([depositedToBank])
 }
 
 // ──────────────────────── EXPENSES ─────────────────────────
@@ -468,6 +516,11 @@ model Expense {
   operator   User   @relation(fields: [operatorId], references: [id])
   kioskId    String
   kiosk      Kiosk  @relation(fields: [kioskId], references: [id])
+
+  @@index([kioskId, date])
+  @@index([operatorId, date])
+  @@index([approved])
+  @@index([category])
 }
 
 // ──────────────────────── SUPPLIERS & PURCHASES ───────────
@@ -482,6 +535,9 @@ model Supplier {
   createdAt    DateTime @default(now())
   purchases    Purchase[]
   templates    PurchaseTemplate[]
+
+  @@index([isActive])
+  @@index([phone])
 }
 
 model Purchase {
@@ -510,6 +566,10 @@ model Purchase {
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
   items      PurchaseItem[]
+
+  @@index([supplierId, date])
+  @@index([date])
+  @@index([approvalStatus])
 }
 
 model PurchaseItem {
@@ -522,6 +582,9 @@ model PurchaseItem {
   purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   itemId     String
   item       Item     @relation(fields: [itemId], references: [id])
+
+  @@index([purchaseId])
+  @@index([itemId])
 }
 
 model CentralStock {
@@ -552,6 +615,10 @@ model Alert {
   kiosk      Kiosk?   @relation(fields: [kioskId], references: [id])
   operatorId String?
   operator   User?    @relation(fields: [operatorId], references: [id])
+
+  @@index([kioskId, isResolved])
+  @@index([isResolved, createdAt])
+  @@index([severity])
 }
 
 // ──────────────────────── COMPLIANCE ──────────────────────
@@ -569,6 +636,9 @@ model ComplianceDocument {
 
   kioskId String
   kiosk   Kiosk  @relation(fields: [kioskId], references: [id])
+
+  @@index([kioskId, status])
+  @@index([expiryDate])
 }
 
 // ──────────────────────── CUSTOMER & LOYALTY ──────────────
@@ -586,6 +656,9 @@ model Customer {
 
   bills       Bill[]
   redemptions LoyaltyRedemption[]
+
+  @@index([loyaltyPts])
+  @@index([totalSpend])
 }
 
 model LoyaltyRedemption {
@@ -597,6 +670,9 @@ model LoyaltyRedemption {
   billId     String
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([billId])
 }
 
 // ──────────────────────── PURCHASE TEMPLATES ─────────────────
@@ -611,6 +687,8 @@ model PurchaseTemplate {
   lastUsedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+
+  @@index([supplierId])
 }
 
 // ──────────────────────── ITEM ALIAS (GLOBAL) ────────────────
@@ -642,4 +720,5 @@ model WeatherLog {
   kiosk   Kiosk  @relation(fields: [kioskId], references: [id])
 
   @@unique([kioskId, date])
+  @@index([date])
 }

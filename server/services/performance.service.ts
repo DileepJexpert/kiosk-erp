@@ -23,7 +23,7 @@ export interface PerformanceScore {
   rating: string;
 }
 
-function getRating(score: number): string {
+export function getRating(score: number): string {
   if (score >= 90) return "EXCELLENT";
   if (score >= 75) return "GOOD";
   if (score >= 60) return "AVERAGE";
@@ -132,3 +132,4 @@ export async function getLeaderboard(month: string): Promise<PerformanceScore[]>
 
   return scores.sort((a, b) => b.totalScore - a.totalScore);
 }
+

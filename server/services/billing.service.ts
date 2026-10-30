@@ -26,6 +26,49 @@ export interface CreateBillOptions {
   notes?: string;
 }
 
+export function calculateBillTotals(
+  items: { quantity: number; unitPrice: number; gstRate?: number }[],
+  channelCommissionRate?: number
+) {
+  const billItems = items.map((item) => {
+    const lineSubtotal = item.quantity * item.unitPrice;
+    const gstRate = item.gstRate ?? 5;
+    const gstAmount = Math.round(lineSubtotal * (gstRate / 100) * 100) / 100;
+    const lineTotal = lineSubtotal + gstAmount;
+    return {
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal,
+      gstRate,
+      gstAmount,
+    };
+  });
+
+  const subtotal = billItems.reduce((sum, item) => sum + (item.lineTotal - item.gstAmount), 0);
+  const totalGst = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
+  const cgstAmount = Math.round((totalGst / 2) * 100) / 100;
+  const sgstAmount = Math.round((totalGst / 2) * 100) / 100;
+  const total = subtotal + totalGst;
+
+  let channelCommission: number | undefined;
+  let netRevenue: number | undefined;
+  if (channelCommissionRate) {
+    channelCommission = Math.round(total * (channelCommissionRate / 100) * 100) / 100;
+    netRevenue = total - channelCommission;
+  }
+
+  return {
+    billItems,
+    subtotal,
+    totalGst,
+    cgstAmount,
+    sgstAmount,
+    total,
+    channelCommission,
+    netRevenue,
+  };
+}
+
 export async function createBill(
   kioskId: string,
   operatorId: string,
@@ -52,47 +95,34 @@ export async function createBill(
   });
   const gstMap = new Map(dbItems.map((i) => [i.id, i.gstRate]));
 
-  // Calculate totals with GST
-  // BRD formula: lineSubtotal = qty × price, lineGST = lineSubtotal × (gstRate/100)
-  const billItems = items.map((item) => {
-    const lineSubtotal = item.quantity * item.unitPrice;
-    const gstRate = gstMap.get(item.itemId) || 5;
-    const gstAmount = Math.round(lineSubtotal * (gstRate / 100) * 100) / 100;
-    const lineTotal = lineSubtotal + gstAmount;
-    return {
-      itemId: item.itemId,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      lineTotal,
-      gstRate,
-      gstAmount,
-    };
-  });
+  const calculation = calculateBillTotals(
+    items.map((i) => ({
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      gstRate: gstMap.get(i.itemId) || 5,
+    })),
+    options?.channelCommissionRate
+  );
 
-  const subtotal = billItems.reduce((sum, item) => sum + (item.lineTotal - item.gstAmount), 0);
-  const totalGst = billItems.reduce((sum, item) => sum + item.gstAmount, 0);
-  const cgstAmount = Math.round((totalGst / 2) * 100) / 100;
-  const sgstAmount = Math.round((totalGst / 2) * 100) / 100;
-  const total = subtotal + totalGst;
-
-  // Channel commission calculation
-  let channelCommission: number | undefined;
-  let netRevenue: number | undefined;
-  if (options?.channelCommissionRate) {
-    channelCommission = Math.round(total * (options.channelCommissionRate / 100) * 100) / 100;
-    netRevenue = total - channelCommission;
-  }
+  const billItemsToCreate = items.map((item, index) => ({
+    itemId: item.itemId,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    lineTotal: calculation.billItems[index].lineTotal,
+    gstRate: calculation.billItems[index].gstRate,
+    gstAmount: calculation.billItems[index].gstAmount,
+  }));
 
   return db.bill.create({
     data: {
       kioskId,
       operatorId,
       date,
-      subtotal,
-      gstAmount: totalGst,
-      cgstAmount,
-      sgstAmount,
-      total,
+      subtotal: calculation.subtotal,
+      gstAmount: calculation.totalGst,
+      cgstAmount: calculation.cgstAmount,
+      sgstAmount: calculation.sgstAmount,
+      total: calculation.total,
       paymentMode,
       paymentStatus: paymentMode === "CASH" ? "CONFIRMED" : "PENDING",
       upiTransactionRef: options?.upiTransactionRef,
@@ -101,14 +131,14 @@ export async function createBill(
       orderChannel: options?.orderChannel || "WALK_IN",
       channelOrderId: options?.channelOrderId,
       channelCommissionRate: options?.channelCommissionRate,
-      channelCommission,
-      netRevenue,
+      channelCommission: calculation.channelCommission,
+      netRevenue: calculation.netRevenue,
       customerName,
       customerPhone,
       customerId: options?.customerId,
       notes,
       items: {
-        create: billItems,
+        create: billItemsToCreate,
       },
     },
     include: {

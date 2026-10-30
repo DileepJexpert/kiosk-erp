@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kiosk-erp-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://kiosk_user:kiosk_password_prod@db:5432/kiosk_erp?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=replace-with-a-random-32-byte-hex-secret-in-production
+      - MOCK_OTP_ENABLED=false
+      - MSG91_AUTH_KEY=
+      - MSG91_TEMPLATE_ID=
+      - ANTHROPIC_API_KEY=
+      - RAZORPAY_KEY_ID=
+      - RAZORPAY_KEY_SECRET=
+      - RAZORPAY_WEBHOOK_SECRET=
+      - OPENWEATHERMAP_API_KEY=
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - kiosk-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: kiosk-erp-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=kiosk_user
+      - POSTGRES_PASSWORD=kiosk_password_prod
+      - POSTGRES_DB=kiosk_erp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kiosk_user -d kiosk_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kiosk-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  kiosk-network:
+    driver: bridge

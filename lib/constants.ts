@@ -53,6 +53,6 @@ export const OWNER_NAV_ITEMS = [
 export const OPERATOR_NAV_ITEMS = [
   { label: "My Kiosk", href: "/my-kiosk", icon: "Store" },
   { label: "Sell", href: "/sell", icon: "ShoppingCart" },
-  { label: "Reconcile", href: "/reconcile", icon: "ClipboardCheck" },
+  { label: "Reconcile", href: "/my-reconcile", icon: "ClipboardCheck" },
   { label: "Salary", href: "/my-salary", icon: "Wallet" },
 ] as const;

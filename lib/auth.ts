@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -65,8 +66,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 });
 
 async function verifyOTP(phone: string, otp: string): Promise<boolean> {
-  // Mock OTP mode for development
-  if (process.env.MOCK_OTP_ENABLED === "true") {
+  // Mock OTP mode strictly restricted to non-production development
+  if (process.env.NODE_ENV !== "production" && process.env.MOCK_OTP_ENABLED === "true") {
     return otp.length === 6 && /^\d+$/.test(otp);
   }
 
@@ -83,14 +84,15 @@ async function verifyOTP(phone: string, otp: string): Promise<boolean> {
     );
     const data = await response.json();
     return data.type === "success";
-  } catch {
+  } catch (error) {
+    logger.error("Failed to verify OTP with MSG91", error, { phone });
     return false;
   }
 }
 
 export async function sendOTP(phone: string): Promise<boolean> {
-  if (process.env.MOCK_OTP_ENABLED === "true") {
-    console.log(`[MOCK OTP] Sending OTP to ${phone} - use any 6-digit code`);
+  if (process.env.NODE_ENV !== "production" && process.env.MOCK_OTP_ENABLED === "true") {
+    logger.info(`[MOCK OTP] Sending OTP to ${phone} - use any 6-digit code`);
     return true;
   }
 
@@ -107,7 +109,8 @@ export async function sendOTP(phone: string): Promise<boolean> {
     );
     const data = await response.json();
     return data.type === "success";
-  } catch {
+  } catch (error) {
+    logger.error("Failed to send OTP via MSG91", error, { phone });
     return false;
   }
 }
