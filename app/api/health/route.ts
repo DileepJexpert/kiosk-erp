@@ -8,13 +8,18 @@ export async function GET() {
   let dbStatus = "down";
   let dbLatencyMs = 0;
 
+  let userCount = 0;
+  let dbError: string | null = null;
+
   try {
     const dbStart = Date.now();
     await db.$queryRaw`SELECT 1`;
+    userCount = await db.user.count();
     dbLatencyMs = Date.now() - dbStart;
     dbStatus = "up";
-  } catch {
+  } catch (e: any) {
     dbStatus = "error";
+    dbError = e instanceof Error ? e.message : String(e);
   }
 
   const isHealthy = dbStatus === "up";
@@ -30,6 +35,8 @@ export async function GET() {
         database: {
           status: dbStatus,
           latencyMs: dbLatencyMs,
+          userCount,
+          error: dbError,
         },
         memory: {
           heapUsedMb: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),

@@ -58,9 +58,10 @@ export async function POST(req: NextRequest) {
     const isMock = process.env.MOCK_OTP_ENABLED === "true" || !process.env.MSG91_AUTH_KEY;
     return NextResponse.json({ success: true, mock: isMock });
   } catch (error) {
+    const errorDetails = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     logger.error("Error in send-otp API route", error);
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
+      { error: "Something went wrong. Please try again.", details: errorDetails },
       { status: 500 }
     );
   }
