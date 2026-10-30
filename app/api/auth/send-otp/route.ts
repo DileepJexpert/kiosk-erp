@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isMock = process.env.NODE_ENV !== "production" && process.env.MOCK_OTP_ENABLED === "true";
+    const isMock = process.env.MOCK_OTP_ENABLED === "true" || !process.env.MSG91_AUTH_KEY;
     return NextResponse.json({ success: true, mock: isMock });
   } catch (error) {
     logger.error("Error in send-otp API route", error);

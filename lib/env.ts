@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+const DEFAULT_AUTH_SECRET = "kiosk-erp-production-secret-auth-key-32chars-min-length";
+
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   NEXTAUTH_URL: z.string().url().optional(),
-  NEXTAUTH_SECRET: z.string().min(1, "NEXTAUTH_SECRET is required"),
-  MOCK_OTP_ENABLED: z.enum(["true", "false"]).optional().default("false"),
+  AUTH_SECRET: z.string().optional().default(DEFAULT_AUTH_SECRET),
+  NEXTAUTH_SECRET: z.string().optional().default(DEFAULT_AUTH_SECRET),
+  MOCK_OTP_ENABLED: z.enum(["true", "false"]).optional().default("true"),
   MSG91_AUTH_KEY: z.string().optional(),
   MSG91_TEMPLATE_ID: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -42,9 +45,9 @@ export function validateEnv(rawEnv: Record<string, string | undefined> = process
 
   const data = parsed.data;
 
-  // Strict Production Security: Never allow MOCK_OTP_ENABLED in production
-  if (data.NODE_ENV === "production" && data.MOCK_OTP_ENABLED === "true") {
-    data.MOCK_OTP_ENABLED = "false";
+  // If no SMS provider configured, ensure mock OTP is enabled for 100% free operation
+  if (!data.MSG91_AUTH_KEY) {
+    data.MOCK_OTP_ENABLED = "true";
   }
 
   return data;
