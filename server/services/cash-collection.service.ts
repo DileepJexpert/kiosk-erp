@@ -1,6 +1,37 @@
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 
+export function calculateDenominationsTotal(denominations: {
+  c500?: number;
+  c200?: number;
+  c100?: number;
+  c50?: number;
+  c20?: number;
+  c10?: number;
+  coins?: number;
+}): number {
+  return (
+    (denominations.c500 || 0) * 500 +
+    (denominations.c200 || 0) * 200 +
+    (denominations.c100 || 0) * 100 +
+    (denominations.c50 || 0) * 50 +
+    (denominations.c20 || 0) * 20 +
+    (denominations.c10 || 0) * 10 +
+    (denominations.coins || 0)
+  );
+}
+
+export function calculateCashVariance(expectedCash: number, actualCash: number) {
+  const shortage = expectedCash - actualCash;
+  return {
+    shortage,
+    isBalanced: shortage === 0,
+    isShortage: shortage > 0,
+    isSurplus: shortage < 0,
+    varianceAmount: Math.abs(shortage),
+  };
+}
+
 export async function calculateExpectedCash(kioskId: string, date: Date) {
   const bills = await db.bill.findMany({
     where: { kioskId, date },
@@ -44,6 +75,50 @@ export async function recordCollection(
       expectedCash,
       shortage,
       shortageReason,
+    },
+  });
+}
+
+export async function recordBlindCashDrop(
+  kioskId: string,
+  collectedById: string,
+  date: Date,
+  denominations: {
+    c500?: number;
+    c200?: number;
+    c100?: number;
+    c50?: number;
+    c20?: number;
+    c10?: number;
+    coins?: number;
+  },
+  shortageReason?: string
+) {
+  const actualCash = calculateDenominationsTotal(denominations);
+
+  const expectedCash = await calculateExpectedCash(kioskId, date);
+  const shortage = expectedCash - actualCash;
+
+  return db.cashCollection.upsert({
+    where: { kioskId_date: { kioskId, date } },
+    create: {
+      kioskId,
+      collectedById,
+      date,
+      expectedCash,
+      actualCash,
+      shortage,
+      shortageReason,
+      denominations: denominations as any,
+      isBlindDrop: true,
+    },
+    update: {
+      actualCash,
+      expectedCash,
+      shortage,
+      shortageReason,
+      denominations: denominations as any,
+      isBlindDrop: true,
     },
   });
 }

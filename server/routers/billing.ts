@@ -87,7 +87,7 @@ export const billingRouter = createTRPCRouter({
         operatorId = defaultUser.id;
       }
 
-      return createBill(
+      const bill = await createBill(
         input.kioskId,
         operatorId,
         new Date(),
@@ -100,6 +100,63 @@ export const billingRouter = createTRPCRouter({
           orderChannel: "OTHER",
         }
       );
+
+      // Auto-credit loyalty stamp if customer entered phone number
+      let loyaltyInfo = null;
+      if (input.customerPhone) {
+        try {
+          let customer = await ctx.db.customer.findUnique({
+            where: { phone: input.customerPhone },
+          });
+          if (!customer) {
+            customer = await ctx.db.customer.create({
+              data: {
+                phone: input.customerPhone,
+                name: input.customerName || "Valued Customer",
+                totalVisits: 1,
+                stampsCount: 1,
+                freeChaisAvailable: 0,
+                totalSpend: bill.total,
+                lastVisitAt: new Date(),
+              },
+            });
+            loyaltyInfo = {
+              stampsCount: 1,
+              targetStamps: 5,
+              freeChaisAvailable: 0,
+              earnedReward: false,
+            };
+          } else {
+            const nextStamps = customer.stampsCount + 1;
+            const rewardEarned = nextStamps >= 5;
+            const newStamps = rewardEarned ? nextStamps % 5 : nextStamps;
+            const extraReward = rewardEarned ? 1 : 0;
+            customer = await ctx.db.customer.update({
+              where: { id: customer.id },
+              data: {
+                totalVisits: customer.totalVisits + 1,
+                totalSpend: customer.totalSpend + bill.total,
+                stampsCount: newStamps,
+                freeChaisAvailable: customer.freeChaisAvailable + extraReward,
+                lastVisitAt: new Date(),
+              },
+            });
+            loyaltyInfo = {
+              stampsCount: newStamps,
+              targetStamps: 5,
+              freeChaisAvailable: customer.freeChaisAvailable,
+              earnedReward: rewardEarned,
+            };
+          }
+        } catch (e) {
+          console.error("Failed to auto-credit loyalty stamp", e);
+        }
+      }
+
+      return {
+        ...bill,
+        loyaltyInfo,
+      };
     }),
 
   list: protectedProcedure
@@ -156,6 +213,65 @@ export const billingRouter = createTRPCRouter({
           kiosk: true,
           operator: true,
           items: { include: { item: true } },
+        },
+      });
+    }),
+
+  getLiveTokens: publicProcedure
+    .input(z.object({ kioskId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const activeBills = await ctx.db.bill.findMany({
+        where: {
+          kioskId: input.kioskId,
+          createdAt: { gte: today },
+          orderStatus: { in: ["PREPARING", "READY"] },
+        },
+        include: {
+          items: { include: { item: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const preparing = activeBills
+        .filter((b) => b.orderStatus === "PREPARING")
+        .map((b) => ({
+          id: b.id,
+          tokenNumber: String(b.billNumber).padStart(4, "0"),
+          itemCount: b.items.reduce((s, it) => s + it.quantity, 0),
+          createdAt: b.createdAt,
+        }));
+
+      const ready = activeBills
+        .filter((b) => b.orderStatus === "READY")
+        .map((b) => ({
+          id: b.id,
+          tokenNumber: String(b.billNumber).padStart(4, "0"),
+          itemCount: b.items.reduce((s, it) => s + it.quantity, 0),
+          readyAt: b.readyAt || b.createdAt,
+        }));
+
+      return {
+        preparing,
+        ready,
+      };
+    }),
+
+  updateOrderStatus: operatorProcedure
+    .input(
+      z.object({
+        billId: z.string(),
+        orderStatus: z.enum(["PREPARING", "READY", "COMPLETED", "CANCELLED"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.bill.update({
+        where: { id: input.billId },
+        data: {
+          orderStatus: input.orderStatus,
+          ...(input.orderStatus === "READY" && { readyAt: new Date() }),
         },
       });
     }),

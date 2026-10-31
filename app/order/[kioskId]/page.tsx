@@ -7,6 +7,7 @@ import { formatRupee } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,10 @@ import {
   Coffee,
   Utensils,
   Search,
+  Gift,
+  Sparkles,
+  Share2,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +51,12 @@ export default function CustomerSelfOrderPage() {
 
   const kioskMenu = trpc.kiosk.getPublicMenu.useQuery({ kioskId }, { enabled: !!kioskId });
 
+  // Digital loyalty preview
+  const loyaltyCard = trpc.loyalty.getStampCard.useQuery(
+    { phone: customerPhone },
+    { enabled: customerPhone.length === 10 }
+  );
+
   const createBill = trpc.billing.createPublicOrder.useMutation({
     onSuccess: (bill: any) => {
       setOrderConfirmed(bill);
@@ -56,6 +67,10 @@ export default function CustomerSelfOrderPage() {
   });
 
   const addToCart = (item: any) => {
+    if (item.is86ed) {
+      toast.error(lang === "hi" ? "यह आइटम अभी समाप्त है।" : "This item is currently sold out.");
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
@@ -96,7 +111,7 @@ export default function CustomerSelfOrderPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-28">
+    <div className="min-h-screen bg-slate-50 flex flex-col pb-36">
       {/* Top Banner */}
       <header className="sticky top-0 z-30 bg-white border-b shadow-sm px-4 py-3 flex justify-between items-center">
         <div className="flex items-center gap-2.5">
@@ -175,14 +190,36 @@ export default function CustomerSelfOrderPage() {
           ) : (
             filteredItems?.map((item: any) => {
               const inCart = cart.find((i) => i.id === item.id);
+              const is86ed = !!item.is86ed;
+
               return (
-                <Card key={item.id} className="p-3 bg-white border flex justify-between items-center shadow-xs">
+                <Card
+                  key={item.id}
+                  className={`p-3 bg-white border flex justify-between items-center shadow-xs transition-opacity ${
+                    is86ed ? "opacity-60 bg-slate-50 border-dashed" : ""
+                  }`}
+                >
                   <div className="space-y-0.5">
-                    <h3 className="font-semibold text-sm text-slate-900">{item.name}</h3>
-                    <p className="text-xs font-bold text-orange-600">{formatRupee(item.sellPrice)}</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className={`font-semibold text-sm ${is86ed ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                        {item.name}
+                      </h3>
+                      {is86ed && (
+                        <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0 h-4 bg-red-600">
+                          {lang === "hi" ? "समाप्त (86)" : "Out of Stock"}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className={`text-xs font-bold ${is86ed ? "text-slate-400" : "text-orange-600"}`}>
+                      {formatRupee(item.sellPrice)}
+                    </p>
                   </div>
 
-                  {inCart ? (
+                  {is86ed ? (
+                    <Button size="sm" variant="secondary" disabled className="text-xs h-8 px-3 opacity-60">
+                      {lang === "hi" ? "समाप्त" : "Sold Out"}
+                    </Button>
+                  ) : inCart ? (
                     <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg p-1">
                       <Button
                         size="icon"
@@ -222,17 +259,43 @@ export default function CustomerSelfOrderPage() {
 
       {/* Floating Checkout Footer */}
       {cart.length > 0 && !orderConfirmed && (
-        <div className="fixed bottom-0 inset-x-0 bg-white border-t p-3 shadow-lg z-40 max-w-lg mx-auto">
-          <div className="flex justify-between items-center mb-2.5 text-xs text-slate-700">
+        <div className="fixed bottom-0 inset-x-0 bg-white border-t p-3 shadow-lg z-40 max-w-lg mx-auto space-y-2.5">
+          <div className="flex justify-between items-center text-xs text-slate-700">
             <span>
               {cart.reduce((s, i) => s + i.quantity, 0)} {lang === "hi" ? "आइटम चुने गए" : "items selected"}
             </span>
             <span className="text-base font-bold text-slate-900">{formatRupee(totalAmount)}</span>
           </div>
 
+          {/* Loyalty Stamp Status Card Preview */}
+          {customerPhone.length === 10 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coffee className="h-4 w-4 text-amber-700 shrink-0" />
+                <div>
+                  <p className="font-semibold text-amber-900">
+                    {lang === "hi" ? "चाय क्लब डिजिटल पंच कार्ड" : "Chai Club Stamp Card"}
+                  </p>
+                  <p className="text-[11px] text-amber-700">
+                    {loyaltyCard.data?.exists
+                      ? `${"⭐".repeat(loyaltyCard.data.stampsCount)}${"⚪".repeat(
+                          5 - loyaltyCard.data.stampsCount
+                        )} (${loyaltyCard.data.stampsCount}/5) • +1 on this order!`
+                      : "New club member! You'll earn your 1st stamp on this order."}
+                  </p>
+                </div>
+              </div>
+              {loyaltyCard.data?.freeChaisAvailable ? (
+                <Badge className="bg-emerald-600 text-[10px] text-white">
+                  🎁 {loyaltyCard.data.freeChaisAvailable} Free Chai Ready
+                </Badge>
+              ) : null}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Input
-              placeholder={lang === "hi" ? "मोबाइल नंबर (व्हाट्सएप बिल के लिए)" : "Phone number (for WhatsApp e-bill)"}
+              placeholder={lang === "hi" ? "मोबाइल नंबर (लॉयल्टी स्टैम्प एवं रसीद हेतु)" : "Mobile number (for loyalty stamp & e-bill)"}
               type="tel"
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
@@ -276,8 +339,8 @@ export default function CustomerSelfOrderPage() {
               </DialogTitle>
               <DialogDescription className="text-xs mt-1">
                 {lang === "hi"
-                  ? "कृपया काउंटर पर यह टोकन नंबर दिखाकर अपना ताज़ा भोजन प्राप्त करें।"
-                  : "Please show this token number at the counter to collect your fresh order."}
+                  ? "कृपया टीवी डिस्प्ले या काउंटर पर यह टोकन नंबर देखकर अपना भोजन प्राप्त करें।"
+                  : "Please watch the TV display or show this token number at the counter."}
               </DialogDescription>
             </div>
 
@@ -290,17 +353,60 @@ export default function CustomerSelfOrderPage() {
               </span>
             </div>
 
+            {/* Loyalty Stamp Reward Notice */}
+            {orderConfirmed.loyaltyInfo && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-left space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <Sparkles className="h-4 w-4 text-amber-600" />
+                  {orderConfirmed.loyaltyInfo.earnedReward
+                    ? "🎉 CONGRATULATIONS! FREE CHAI UNLOCKED!"
+                    : "Chai Club Stamp Credited!"}
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  {"⭐".repeat(orderConfirmed.loyaltyInfo.stampsCount)}
+                  {"⚪".repeat(5 - orderConfirmed.loyaltyInfo.stampsCount)} (
+                  {orderConfirmed.loyaltyInfo.stampsCount}/5 Chais)
+                </p>
+                {orderConfirmed.loyaltyInfo.freeChaisAvailable > 0 && (
+                  <p className="text-[11px] text-emerald-700 font-bold">
+                    You have {orderConfirmed.loyaltyInfo.freeChaisAvailable} FREE chai ready to claim at the counter!
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="text-xs text-muted-foreground">
               Total Amount: <span className="font-bold text-slate-900">{formatRupee(orderConfirmed.total)}</span> (
               {orderConfirmed.paymentMode})
             </div>
 
-            <Button
-              className="w-full bg-slate-900 hover:bg-slate-800 text-xs"
-              onClick={() => setOrderConfirmed(null)}
-            >
-              {lang === "hi" ? "नया ऑर्डर करें" : "Place Another Order"}
-            </Button>
+            <div className="space-y-2">
+              {customerPhone && (
+                <a
+                  href={`https://wa.me/91${customerPhone}?text=${encodeURIComponent(
+                    `☕ *My Chai Club Passbook* ☕\nToken: #${String(orderConfirmed.billNumber).padStart(
+                      4,
+                      "0"
+                    )}\nTotal: ${formatRupee(orderConfirmed.total)}\nStatus: Preparing at ${
+                      kioskMenu.data?.name || "Kiosk"
+                    }`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  Save Passbook on WhatsApp
+                </a>
+              )}
+
+              <Button
+                className="w-full bg-slate-900 hover:bg-slate-800 text-xs"
+                onClick={() => setOrderConfirmed(null)}
+              >
+                {lang === "hi" ? "नया ऑर्डर करें" : "Place Another Order"}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}

@@ -37,8 +37,8 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Allow public customer self-ordering QR portal
-  if (pathname.startsWith("/order")) {
+  // Allow public customer self-ordering QR portal and TV token display
+  if (pathname.startsWith("/order") || pathname.startsWith("/display")) {
     return NextResponse.next();
   }
 

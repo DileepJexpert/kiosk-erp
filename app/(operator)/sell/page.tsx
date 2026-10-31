@@ -35,6 +35,7 @@ import {
   WifiOff,
   QrCode,
   Share2,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { soundbox } from "@/lib/soundbox";
@@ -74,12 +75,30 @@ export default function SellPage() {
 
   const items = trpc.item.listSellable.useQuery();
   const profile = trpc.user.getProfile.useQuery();
+  const kioskId = profile.data?.assignedKiosk?.id;
+
+  const kioskMenu = trpc.kiosk.getPublicMenu.useQuery(
+    { kioskId: kioskId! },
+    { enabled: !!kioskId }
+  );
+
+  const activeRules = trpc.dynamicPricing.getActiveRules.useQuery(
+    { kioskId: kioskId },
+    { enabled: !!kioskId }
+  );
 
   const customerLookup = trpc.customer.findByPhone.useQuery(
     { phone: customerPhone },
     { enabled: customerPhone.length === 10 }
   );
 
+  const stampCard = trpc.loyalty.getStampCard.useQuery(
+    { phone: customerPhone },
+    { enabled: customerPhone.length === 10 }
+  );
+
+  const recordStamp = trpc.loyalty.recordStamp.useMutation();
+  const redeemReward = trpc.loyalty.redeemReward.useMutation();
   const createCustomer = trpc.customer.create.useMutation();
   const addPoints = trpc.customer.addPoints.useMutation();
 
@@ -90,7 +109,13 @@ export default function SellPage() {
         soundbox.announcePayment(bill.total);
       }
 
-      // Add loyalty points if customer exists
+      // Record loyalty points & stamps
+      if (customerPhone.length === 10) {
+        try {
+          await recordStamp.mutateAsync({ phone: customerPhone });
+        } catch {}
+      }
+
       if (customerLookup.data) {
         try {
           await addPoints.mutateAsync({
@@ -345,6 +370,21 @@ export default function SellPage() {
         </div>
       </div>
 
+      {/* Active Dynamic Pricing Banner */}
+      {activeRules.data && activeRules.data.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-900 rounded-lg p-2.5 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-bold">
+            <Zap className="h-3.5 w-3.5 text-amber-600" />
+            <span>{activeRules.data[0].name}</span>
+          </div>
+          <Badge className="bg-amber-600 text-white font-bold text-[10px]">
+            {activeRules.data[0].discountPercent > 0
+              ? `-${activeRules.data[0].discountPercent}% OFF`
+              : `+${Math.abs(activeRules.data[0].discountPercent)}% SURGE`}
+          </Badge>
+        </div>
+      )}
+
       {/* Item Grid */}
       {items.isLoading ? (
         <div className="grid grid-cols-2 gap-3">
@@ -354,19 +394,30 @@ export default function SellPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {items.data?.map((item) => {
+          {items.data?.map((item: any) => {
             const inCart = cart.find((c) => c.itemId === item.id);
+            const is86ed = kioskMenu.data?.items?.find((ki: any) => ki.id === item.id)?.is86ed || false;
             return (
               <button
                 key={item.id}
-                onClick={() => addToCart(item)}
-                className={`relative p-4 rounded-xl border-2 text-left transition-all active:scale-95 ${
-                  inCart
-                    ? "border-orange-500 bg-orange-50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                disabled={is86ed}
+                onClick={() => !is86ed && addToCart(item)}
+                className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                  is86ed
+                    ? "opacity-50 bg-slate-100 border-slate-200 cursor-not-allowed"
+                    : inCart
+                    ? "border-orange-500 bg-orange-50 active:scale-95"
+                    : "border-gray-200 bg-white hover:border-gray-300 active:scale-95"
                 }`}
               >
-                <p className="font-medium text-sm leading-tight">{item.name}</p>
+                <div className="flex justify-between items-start gap-1">
+                  <p className="font-medium text-sm leading-tight">{item.name}</p>
+                  {is86ed && (
+                    <Badge variant="destructive" className="text-[9px] px-1 py-0 font-bold shrink-0">
+                      86 OUT
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-lg font-bold text-orange-600 mt-1">
                   {formatRupee(item.sellPrice)}
                 </p>
@@ -505,6 +556,44 @@ export default function SellPage() {
                     onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     className="text-sm"
                   />
+                  {customerPhone.length === 10 && stampCard.data && (
+                    <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-amber-950 flex items-center gap-1">
+                          ☕ Chai Club Digital Passbook
+                        </span>
+                        <span className="font-mono text-amber-800 text-sm font-bold">
+                          {"⭐".repeat(stampCard.data.stampsCount)}{"⚪".repeat(5 - stampCard.data.stampsCount)} ({stampCard.data.stampsCount}/5)
+                        </span>
+                      </div>
+                      {stampCard.data.freeChaisAvailable > 0 && (
+                        <div className="flex justify-between items-center pt-1 border-t border-amber-200">
+                          <span className="font-semibold text-emerald-800">
+                            🎁 {stampCard.data.freeChaisAvailable} Free Chai Available
+                          </span>
+                          <Button
+                            size="sm"
+                            className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                            onClick={() => {
+                              redeemReward.mutate(
+                                { phone: customerPhone },
+                                {
+                                  onSuccess: () => {
+                                    toast.success("1 Free Chai claimed!");
+                                    stampCard.refetch();
+                                  },
+                                  onError: (err: any) => toast.error(err.message),
+                                }
+                              );
+                            }}
+                            disabled={redeemReward.isPending}
+                          >
+                            Claim Free Chai
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {customerLookup.data && (
                     <p className="text-xs text-green-600 mt-1">
                       {customerLookup.data.name || "Customer"} — {customerLookup.data.loyaltyPts} pts
@@ -574,27 +663,43 @@ export default function SellPage() {
             <span className="font-bold text-emerald-900 block">Bill #{lastCreatedBill.billNumber} Saved!</span>
             <span className="text-emerald-700">Customer: +91 {lastCreatedBill.customerPhone}</span>
           </div>
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-xs gap-1.5 h-8 font-semibold"
-            onClick={() => {
-              const text = whatsappService.formatCustomerEBill({
-                billNumber: lastCreatedBill.billNumber,
-                kioskName: lastCreatedBill.kioskName,
-                date: new Date().toLocaleDateString("en-IN"),
-                items: lastCreatedBill.items,
-                subtotal: lastCreatedBill.subtotal || lastCreatedBill.total,
-                discount: lastCreatedBill.discount || 0,
-                gstAmount: lastCreatedBill.tax || 0,
-                total: lastCreatedBill.total,
-                paymentMode: lastCreatedBill.paymentMode,
-              });
-              const link = whatsappService.createWhatsAppLink(lastCreatedBill.customerPhone, text);
-              window.open(link, "_blank");
-            }}
-          >
-            <Share2 className="h-3.5 w-3.5" /> Send WhatsApp E-Bill
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs border-amber-300 text-amber-800 hover:bg-amber-100 h-8 font-semibold"
+              onClick={() => {
+                const message = `☕ *${lastCreatedBill.kioskName} — Chai Club Passbook* ☕\n\n` +
+                  `Thank you for your visit today!\n` +
+                  `Your bill #${lastCreatedBill.billNumber} (${formatRupee(lastCreatedBill.total)}) has earned you another digital stamp.\n` +
+                  `Collect 5 stamps to claim your next FREE cutting chai!`;
+                window.open(`https://wa.me/91${lastCreatedBill.customerPhone}?text=${encodeURIComponent(message)}`, "_blank");
+              }}
+            >
+              ☕ Send Stamp Passbook
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-xs gap-1.5 h-8 font-semibold"
+              onClick={() => {
+                const text = whatsappService.formatCustomerEBill({
+                  billNumber: lastCreatedBill.billNumber,
+                  kioskName: lastCreatedBill.kioskName,
+                  date: new Date().toLocaleDateString("en-IN"),
+                  items: lastCreatedBill.items,
+                  subtotal: lastCreatedBill.subtotal || lastCreatedBill.total,
+                  discount: lastCreatedBill.discount || 0,
+                  gstAmount: lastCreatedBill.tax || 0,
+                  total: lastCreatedBill.total,
+                  paymentMode: lastCreatedBill.paymentMode,
+                });
+                const link = whatsappService.createWhatsAppLink(lastCreatedBill.customerPhone, text);
+                window.open(link, "_blank");
+              }}
+            >
+              <Share2 className="h-3.5 w-3.5" /> Send E-Bill
+            </Button>
+          </div>
         </div>
       )}
     </div>

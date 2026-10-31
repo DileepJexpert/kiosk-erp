@@ -24,6 +24,10 @@ import { franchiseRouter } from "./routers/franchise";
 import { equipmentRouter } from "./routers/equipment";
 import { aiForecastRouter } from "./routers/ai-forecast";
 import { whatsappRouter } from "./routers/whatsapp";
+import { dynamicPricingRouter } from "./routers/dynamic-pricing";
+import { loyaltyRouter } from "./routers/loyalty";
+import { wasteRouter } from "./routers/waste";
+import { stockTransferRouter } from "./routers/stock-transfer";
 
 export const appRouter = createTRPCRouter({
   kiosk: kioskRouter,
@@ -51,6 +55,10 @@ export const appRouter = createTRPCRouter({
   equipment: equipmentRouter,
   aiForecast: aiForecastRouter,
   whatsapp: whatsappRouter,
+  dynamicPricing: dynamicPricingRouter,
+  loyalty: loyaltyRouter,
+  waste: wasteRouter,
+  stockTransfer: stockTransferRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -119,6 +119,7 @@ model User {
   cashCollections   CashCollection[]
   expenses          Expense[]
   alerts            Alert[]
+  wasteAuditLogs    WasteAuditLog[]
 
   @@index([role, isActive])
   @@index([phone])
@@ -160,6 +161,7 @@ model Kiosk {
   cashCollections   CashCollection[]
   expenses          Expense[]
   alerts            Alert[]
+  wasteAuditLogs    WasteAuditLog[]
   complianceDocs    ComplianceDocument[]
   weatherLogs       WeatherLog[]
 
@@ -172,6 +174,12 @@ model Kiosk {
 
   // Equipment & Maintenance
   equipments          Equipment[]
+
+  // Competitive Gaps
+  dynamicPricingRules    DynamicPricingRule[]
+  itemAvailabilities     KioskItemAvailability[]
+  stockTransfersSent     StockTransfer[] @relation("TransferSource")
+  stockTransfersReceived StockTransfer[] @relation("TransferTarget")
 
   @@index([isActive])
   @@index([managerId])
@@ -214,6 +222,9 @@ model Item {
   purchaseItems     PurchaseItem[]
   centralStock      CentralStock?
   recipe            Recipe?
+  wasteAuditLogs    WasteAuditLog[]
+  kioskItemAvailabilities KioskItemAvailability[]
+  stockTransfers    StockTransfer[]
 
   @@index([category, isActive])
   @@index([barcode])
@@ -339,6 +350,10 @@ model Bill {
   channelCommission     Float?
   netRevenue            Float?
 
+  // Kitchen & Token Order Flow
+  orderStatus           String       @default("PREPARING") // PREPARING, READY, COMPLETED, CANCELLED
+  readyAt               DateTime?
+
   // Customer
   customerName  String?
   customerPhone String?
@@ -362,6 +377,7 @@ model Bill {
   @@index([orderChannel])
   @@index([paymentMode])
   @@index([paymentStatus])
+  @@index([kioskId, orderStatus])
 }
 
 model BillItem {
@@ -497,6 +513,8 @@ model CashCollection {
   actualCash      Float
   shortage        Float
   shortageReason  String?
+  denominations   Json?
+  isBlindDrop     Boolean  @default(true)
   depositedToBank Boolean  @default(false)
   bankDepositRef  String?
   bankDepositDate DateTime?
@@ -660,8 +678,10 @@ model Customer {
   phone       String    @unique
   name        String?
   totalVisits Int       @default(0)
-  totalSpend  Float     @default(0)
-  loyaltyPts  Int       @default(0)
+  totalSpend          Float     @default(0)
+  loyaltyPts          Int       @default(0)
+  stampsCount         Int       @default(0)
+  freeChaisAvailable  Int       @default(0)
   lastVisitAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -815,4 +835,79 @@ model MaintenanceLog {
   createdAt   DateTime  @default(now())
 
   @@index([equipmentId, status])
+}
+
+// ──────────────────────── DYNAMIC SURGE & HAPPY HOUR PRICING ────────────────────────
+
+model DynamicPricingRule {
+  id              String   @id @default(cuid())
+  name            String
+  ruleType        String   // HAPPY_HOUR, RAIN_SURGE, WEEKEND_PEAK
+  kioskId         String?
+  kiosk           Kiosk?   @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  discountPercent Float    // e.g. 15 for 15% discount, -10 for 10% surge
+  startTime       String?  // e.g. "15:00"
+  endTime         String?  // e.g. "17:00"
+  daysOfWeek      String?  // e.g. "1,2,3,4,5"
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([kioskId, isActive])
+}
+
+// ──────────────────────── FOOD WASTE & SPOILAGE AUDITING ────────────────────────
+
+model WasteAuditLog {
+  id         String   @id @default(cuid())
+  kioskId    String
+  kiosk      Kiosk    @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id])
+  quantity   Float
+  reason     String   // CURDLED_MILK, BURNT_PREP, DROPPED_DAMAGED, EXPIRED_SHELF_LIFE, PEST_DAMAGE
+  costLoss   Float    @default(0)
+  photoUrl   String?  // Base64 or uploaded URL
+  notes      String?
+  loggedById String
+  loggedBy   User     @relation(fields: [loggedById], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([kioskId, createdAt])
+  @@index([itemId])
+}
+
+// ──────────────────────── AUTO-86 (OUT OF STOCK TOGGLE) ────────────────────────
+
+model KioskItemAvailability {
+  id          String   @id @default(cuid())
+  kioskId     String
+  kiosk       Kiosk    @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  isAvailable Boolean  @default(true)
+  reason      String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kioskId, itemId])
+  @@index([kioskId, isAvailable])
+}
+
+// ──────────────────────── INTER-KIOSK STOCK TRANSFERS ────────────────────────
+
+model StockTransfer {
+  id            String    @id @default(cuid())
+  transferCode  String    @unique
+  sourceKioskId String
+  sourceKiosk   Kiosk     @relation("TransferSource", fields: [sourceKioskId], references: [id], onDelete: Cascade)
+  targetKioskId String
+  targetKiosk   Kiosk     @relation("TransferTarget", fields: [targetKioskId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item      @relation(fields: [itemId], references: [id])
+  quantity      Float
+  status        String    @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([sourceKioskId, status])
+  @@index([targetKioskId, status])
 }
