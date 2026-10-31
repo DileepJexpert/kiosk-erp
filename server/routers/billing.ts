@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, operatorProcedure, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
+import { createTRPCRouter, operatorProcedure, protectedProcedure, publicProcedure } from "../trpc";
 import { createBill, getDaySummary } from "../services/billing.service";
 
 export const billingRouter = createTRPCRouter({
@@ -46,6 +47,57 @@ export const billingRouter = createTRPCRouter({
           channelOrderId: input.channelOrderId,
           channelCommissionRate: input.channelCommissionRate,
           customerId: input.customerId,
+        }
+      );
+    }),
+
+  createPublicOrder: publicProcedure
+    .input(
+      z.object({
+        kioskId: z.string(),
+        paymentMode: z.enum(["CASH", "UPI"]).default("UPI"),
+        customerPhone: z.string().optional(),
+        customerName: z.string().optional(),
+        items: z.array(
+          z.object({
+            itemId: z.string(),
+            quantity: z.number().int().positive(),
+            unitPrice: z.number().positive(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const kiosk = await ctx.db.kiosk.findUnique({
+        where: { id: input.kioskId },
+      });
+      if (!kiosk) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Kiosk not found" });
+      }
+
+      let operatorId = kiosk.operatorId;
+      if (!operatorId) {
+        const defaultUser = await ctx.db.user.findFirst();
+        if (!defaultUser) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "No system operator configured",
+          });
+        }
+        operatorId = defaultUser.id;
+      }
+
+      return createBill(
+        input.kioskId,
+        operatorId,
+        new Date(),
+        input.items,
+        input.paymentMode,
+        input.customerName || "Counter Guest",
+        input.customerPhone,
+        "Counter Self-Order QR",
+        {
+          orderChannel: "OTHER",
         }
       );
     }),

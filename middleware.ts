@@ -11,11 +11,14 @@ const OWNER_ROUTES = [
   "/customers",
   "/dashboard",
   "/dispatch",
+  "/equipment",
   "/expenses",
+  "/franchise",
   "/gst-reports",
   "/inventory",
   "/performance",
   "/purchases",
+  "/recipes",
   "/reconcile",
   "/reports",
   "/salary",
@@ -31,6 +34,11 @@ export default auth((req) => {
 
   // Allow internal API routes
   if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  // Allow public customer self-ordering QR portal
+  if (pathname.startsWith("/order")) {
     return NextResponse.next();
   }
 

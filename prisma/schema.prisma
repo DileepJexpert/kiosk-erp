@@ -163,6 +163,16 @@ model Kiosk {
   complianceDocs    ComplianceDocument[]
   weatherLogs       WeatherLog[]
 
+  // Franchise & Royalty Management
+  modelType           String          @default("COMPANY_OWNED") // COMPANY_OWNED, FOCO, FOFO
+  royaltyPercent      Float           @default(0)
+  franchiseOwnerName  String?
+  franchiseOwnerPhone String?
+  franchisePayouts    FranchisePayout[]
+
+  // Equipment & Maintenance
+  equipments          Equipment[]
+
   @@index([isActive])
   @@index([managerId])
 }
@@ -203,6 +213,7 @@ model Item {
   menuTemplateItems MenuTemplateItem[]
   purchaseItems     PurchaseItem[]
   centralStock      CentralStock?
+  recipe            Recipe?
 
   @@index([category, isActive])
   @@index([barcode])
@@ -722,4 +733,86 @@ model WeatherLog {
 
   @@unique([kioskId, date])
   @@index([date])
+}
+
+// ──────────────────────── RECIPES (BILL OF MATERIALS) ────────────────────────
+
+model Recipe {
+  id           String             @id @default(cuid())
+  itemId       String             @unique
+  item         Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  yieldCount   Float              @default(1)
+  instructions String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  ingredients  RecipeIngredient[]
+
+  @@index([itemId])
+}
+
+model RecipeIngredient {
+  id             String   @id @default(cuid())
+  recipeId       String
+  recipe         Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientName String
+  unit           String   // "ml", "g", "pcs", "kg", "L"
+  quantity       Float
+  costPerUnit    Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([recipeId])
+}
+
+// ──────────────────────── FRANCHISE MANAGEMENT ────────────────────────
+
+model FranchisePayout {
+  id            String    @id @default(cuid())
+  kioskId       String
+  kiosk         Kiosk     @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  month         Int       // 1-12
+  year          Int       // e.g. 2026
+  grossSales    Float     @default(0)
+  netSales      Float     @default(0)
+  royaltyAmount Float     @default(0)
+  status        String    @default("PENDING") // PENDING, PAID
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([kioskId, month, year])
+  @@index([kioskId, status])
+}
+
+// ──────────────────────── EQUIPMENT & AMC ────────────────────────
+
+model Equipment {
+  id             String           @id @default(cuid())
+  kioskId        String
+  kiosk          Kiosk            @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  name           String
+  brand          String?
+  serialNumber   String?
+  purchaseDate   DateTime?
+  warrantyExpiry DateTime?
+  amcExpiry      DateTime?
+  status         String           @default("OPERATIONAL") // OPERATIONAL, NEEDS_REPAIR, IN_SERVICE
+  logs           MaintenanceLog[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([kioskId, status])
+}
+
+model MaintenanceLog {
+  id          String    @id @default(cuid())
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  issue       String
+  cost        Float     @default(0)
+  technician  String?
+  resolvedAt  DateTime?
+  status      String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  createdAt   DateTime  @default(now())
+
+  @@index([equipmentId, status])
 }

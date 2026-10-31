@@ -19,6 +19,11 @@ import { performanceRouter } from "./routers/performance";
 import { weatherRouter } from "./routers/weather";
 import { gstRouter } from "./routers/gst";
 import { purchaseSmartRouter } from "./routers/purchase-smart";
+import { recipeRouter } from "./routers/recipe";
+import { franchiseRouter } from "./routers/franchise";
+import { equipmentRouter } from "./routers/equipment";
+import { aiForecastRouter } from "./routers/ai-forecast";
+import { whatsappRouter } from "./routers/whatsapp";
 
 export const appRouter = createTRPCRouter({
   kiosk: kioskRouter,
@@ -41,6 +46,11 @@ export const appRouter = createTRPCRouter({
   weather: weatherRouter,
   gst: gstRouter,
   purchaseSmart: purchaseSmartRouter,
+  recipe: recipeRouter,
+  franchise: franchiseRouter,
+  equipment: equipmentRouter,
+  aiForecast: aiForecastRouter,
+  whatsapp: whatsappRouter,
 });
 
 export type AppRouter = typeof appRouter;

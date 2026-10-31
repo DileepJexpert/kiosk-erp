@@ -32,6 +32,9 @@ import {
   Trophy,
   IndianRupee,
   ScanLine,
+  UtensilsCrossed,
+  Building2,
+  Wrench,
 } from "lucide-react";
 
 const navItems = [
@@ -39,6 +42,9 @@ const navItems = [
   { label: "Dispatch", href: "/dispatch", icon: Truck },
   { label: "Reconciliation", href: "/reconcile", icon: ClipboardCheck },
   { label: "Inventory", href: "/inventory", icon: Package },
+  { label: "Recipes (BOM)", href: "/recipes", icon: UtensilsCrossed },
+  { label: "Franchise & Royalty", href: "/franchise", icon: Building2 },
+  { label: "Equipment & AMC", href: "/equipment", icon: Wrench },
   { label: "Billing", href: "/billing", icon: Receipt },
   { label: "GST Reports", href: "/gst-reports", icon: IndianRupee },
   { label: "Salary", href: "/salary", icon: Wallet },
