@@ -37,8 +37,8 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Allow public customer self-ordering QR portal and TV token display
-  if (pathname.startsWith("/order") || pathname.startsWith("/display")) {
+  // Allow public customer self-ordering QR portal, TV token display, and Kitchen Display System (KDS)
+  if (pathname.startsWith("/order") || pathname.startsWith("/display") || pathname.startsWith("/kds")) {
     return NextResponse.next();
   }
 

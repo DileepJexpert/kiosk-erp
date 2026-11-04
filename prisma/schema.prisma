@@ -213,6 +213,7 @@ model Item {
   lastPurchasePrice    Float?
   avgPurchasePrice     Float?
   preferredSupplierId  String?
+  modifiers            Json? // Item modifier options e.g. [{ name: "Less Sugar", price: 0 }]
 
   variants          ItemVariant[]
   dispatchItems     DispatchItem[]
@@ -352,7 +353,15 @@ model Bill {
 
   // Kitchen & Token Order Flow
   orderStatus           String       @default("PREPARING") // PREPARING, READY, COMPLETED, CANCELLED
+  orderType             String       @default("DINE_IN")   // DINE_IN, TAKEAWAY, DELIVERY
+  cookingStartedAt      DateTime?
   readyAt               DateTime?
+
+  // High-Speed Cash & Discounting
+  discountAmount        Float        @default(0)
+  discountReason        String?
+  tenderAmount          Float?       // Cash tendered by customer
+  changeReturned        Float?       // Change returned to customer
 
   // Customer
   customerName  String?
@@ -387,6 +396,8 @@ model BillItem {
   lineTotal  Float
   gstRate    Float  @default(5)
   gstAmount  Float  @default(0)
+  modifiers  Json?  // Selected modifiers e.g. [{ name: "Less Sugar", price: 0 }]
+  notes      String?
   billId     String
   bill       Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
   itemId     String

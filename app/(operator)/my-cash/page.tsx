@@ -10,8 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Banknote, CheckCircle, ShieldCheck, Calculator } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Banknote,
+  CheckCircle,
+  ShieldCheck,
+  Calculator,
+  Printer,
+  FileSpreadsheet,
+  TrendingUp,
+  Receipt,
+} from "lucide-react";
 import { toast } from "sonner";
+import { printThermalRaw, generateZReportPrintText } from "@/lib/printer-thermal";
 
 export default function MyCashPage() {
   const [c500, setC500] = useState("");
@@ -22,6 +39,7 @@ export default function MyCashPage() {
   const [c10, setC10] = useState("");
   const [coins, setCoins] = useState("");
   const [shortageReason, setShortageReason] = useState("");
+  const [showZReportDialog, setShowZReportDialog] = useState(false);
 
   const today = getToday();
   const profile = trpc.user.getProfile.useQuery();
@@ -30,6 +48,11 @@ export default function MyCashPage() {
   const todayCollection = trpc.cashCollection.getByDate.useQuery(
     { kioskId: kioskId!, date: today },
     { enabled: !!kioskId }
+  );
+
+  const zReportQuery = trpc.billing.getZReport.useQuery(
+    { kioskId: kioskId!, date: today },
+    { enabled: !!kioskId && showZReportDialog }
   );
 
   const blindDropMutation = trpc.cashCollection.recordBlindDrop.useMutation({
@@ -72,6 +95,12 @@ export default function MyCashPage() {
     });
   };
 
+  const handlePrintZReport = () => {
+    if (!zReportQuery.data) return;
+    const rawSlip = generateZReportPrintText(zReportQuery.data);
+    printThermalRaw(rawSlip, `Z-Report-${profile.data?.assignedKiosk?.name}`);
+  };
+
   if (profile.isLoading) {
     return (
       <div className="space-y-4">
@@ -83,14 +112,26 @@ export default function MyCashPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Banknote className="h-5 w-5 text-emerald-600" />
-          Blind Cash Drop & Handover
-        </h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Anti-theft protocol: count drawer currency blindly. Discrepancy is audited directly by management.
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Banknote className="h-5 w-5 text-emerald-600" />
+            Blind Cash Drop & Shift Handover
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Anti-theft protocol: count drawer currency blindly. Discrepancy is audited directly by management.
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-9 border-slate-300 gap-1.5 font-semibold"
+          onClick={() => setShowZReportDialog(true)}
+        >
+          <Receipt className="h-4 w-4 text-orange-600" />
+          Shift Z-Report
+        </Button>
       </div>
 
       {/* Security Info Card */}
@@ -115,14 +156,25 @@ export default function MyCashPage() {
       {todayCollection.data ? (
         <Card className="border-emerald-200 bg-emerald-50">
           <CardContent className="pt-5 pb-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-emerald-600" />
-              <div>
-                <h3 className="font-bold text-emerald-950 text-base">Blind Cash Drop Submitted</h3>
-                <p className="text-xs text-emerald-700">
-                  Recorded on {new Date(todayCollection.data.createdAt).toLocaleTimeString("en-IN")}
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-6 w-6 text-emerald-600" />
+                <div>
+                  <h3 className="font-bold text-emerald-950 text-base">Blind Cash Drop Submitted</h3>
+                  <p className="text-xs text-emerald-700">
+                    Recorded on {new Date(todayCollection.data.createdAt).toLocaleTimeString("en-IN")}
+                  </p>
+                </div>
               </div>
+
+              <Button
+                size="sm"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs gap-1.5 h-8 font-semibold"
+                onClick={() => setShowZReportDialog(true)}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print Shift Slip
+              </Button>
             </div>
 
             <div className="bg-white p-3.5 rounded-xl border border-emerald-200 space-y-1.5 text-xs">
@@ -280,6 +332,97 @@ export default function MyCashPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Shift Closing Z-Report Dialog */}
+      <Dialog open={showZReportDialog} onOpenChange={setShowZReportDialog}>
+        <DialogContent className="max-w-md p-5 space-y-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Receipt className="h-5 w-5 text-orange-600" />
+              Daily Shift Closing (Z-Report)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Official shift register settlement and financial audit summary.
+            </DialogDescription>
+          </DialogHeader>
+
+          {zReportQuery.isLoading ? (
+            <p className="text-xs text-muted-foreground text-center py-6">Generating shift financials...</p>
+          ) : zReportQuery.data ? (
+            <div className="space-y-3 text-xs max-h-[60vh] overflow-y-auto pr-1">
+              {/* Summary Header */}
+              <div className="bg-slate-50 p-3 rounded-lg border space-y-1">
+                <div className="flex justify-between font-bold text-slate-800">
+                  <span>{zReportQuery.data.kiosk.name}</span>
+                  <span className="font-mono">{zReportQuery.data.reportNumber}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Cashier: {zReportQuery.data.kiosk.operatorName} • GSTIN: {zReportQuery.data.kiosk.gstin}
+                </p>
+              </div>
+
+              {/* Financial Metrics */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 p-2.5 rounded-lg border">
+                  <span className="text-[11px] text-muted-foreground block">Gross Sales</span>
+                  <span className="text-base font-bold text-slate-900 font-mono">
+                    {formatRupee(zReportQuery.data.financials.grossSales)}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-lg border">
+                  <span className="text-[11px] text-muted-foreground block">Net Revenue</span>
+                  <span className="text-base font-bold text-emerald-600 font-mono">
+                    {formatRupee(zReportQuery.data.financials.netRevenue)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Payments Split */}
+              <div className="border rounded-lg p-2.5 space-y-1">
+                <span className="font-bold text-slate-700 block">Payment Methods</span>
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Cash ({zReportQuery.data.payments.cash.count} bills):</span>
+                  <span className="font-mono font-semibold">{formatRupee(zReportQuery.data.payments.cash.amount)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>UPI QR ({zReportQuery.data.payments.upi.count} bills):</span>
+                  <span className="font-mono font-semibold">{formatRupee(zReportQuery.data.payments.upi.amount)}</span>
+                </div>
+              </div>
+
+              {/* Cash Reconciliation */}
+              <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-2.5 space-y-1 text-xs">
+                <span className="font-bold text-amber-950 block">Cash Drawer Audit</span>
+                <div className="flex justify-between text-[11px]">
+                  <span>Cash Sales:</span>
+                  <span className="font-mono font-semibold">{formatRupee(zReportQuery.data.drawerReconciliation.cashRevenue)}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                  <span>Petty Cash Expenses:</span>
+                  <span className="font-mono text-red-600">-{formatRupee(zReportQuery.data.drawerReconciliation.totalPettyCashExpenses)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] font-bold border-t pt-1">
+                  <span>Expected in Drawer:</span>
+                  <span className="font-mono">{formatRupee(zReportQuery.data.drawerReconciliation.expectedCashInDrawer)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span>Actual Count Dropped:</span>
+                  <span className="font-mono text-emerald-700">{formatRupee(zReportQuery.data.drawerReconciliation.actualCashCollected)}</span>
+                </div>
+              </div>
+
+              {/* Thermal Print Action */}
+              <Button
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs h-10 gap-2 font-semibold"
+                onClick={handlePrintZReport}
+              >
+                <Printer className="h-4 w-4" />
+                Print Thermal Z-Report Slip (80mm / 58mm)
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, operatorProcedure, protectedProcedure, publicProcedure } from "../trpc";
-import { createBill, getDaySummary } from "../services/billing.service";
+import { createBill, getDaySummary, generateZReport } from "../services/billing.service";
 
 export const billingRouter = createTRPCRouter({
   create: operatorProcedure
@@ -14,6 +14,11 @@ export const billingRouter = createTRPCRouter({
         cashAmount: z.number().optional(),
         upiAmount: z.number().optional(),
         orderChannel: z.enum(["WALK_IN", "SWIGGY", "ZOMATO", "PHONE", "OTHER"]).default("WALK_IN"),
+        orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).default("DINE_IN"),
+        discountAmount: z.number().optional(),
+        discountReason: z.string().optional(),
+        tenderAmount: z.number().optional(),
+        changeReturned: z.number().optional(),
         channelOrderId: z.string().optional(),
         channelCommissionRate: z.number().optional(),
         customerName: z.string().optional(),
@@ -25,6 +30,15 @@ export const billingRouter = createTRPCRouter({
             itemId: z.string(),
             quantity: z.number().int().positive(),
             unitPrice: z.number().positive(),
+            modifiers: z
+              .array(
+                z.object({
+                  name: z.string(),
+                  price: z.number(),
+                })
+              )
+              .optional(),
+            notes: z.string().optional(),
           })
         ),
       })
@@ -44,6 +58,11 @@ export const billingRouter = createTRPCRouter({
           cashAmount: input.cashAmount,
           upiAmount: input.upiAmount,
           orderChannel: input.orderChannel,
+          orderType: input.orderType,
+          discountAmount: input.discountAmount,
+          discountReason: input.discountReason,
+          tenderAmount: input.tenderAmount,
+          changeReturned: input.changeReturned,
           channelOrderId: input.channelOrderId,
           channelCommissionRate: input.channelCommissionRate,
           customerId: input.customerId,
@@ -274,5 +293,47 @@ export const billingRouter = createTRPCRouter({
           ...(input.orderStatus === "READY" && { readyAt: new Date() }),
         },
       });
+    }),
+
+  // ── Kitchen Display System (KDS) Live Orders Stream ──
+  getKDSOrders: operatorProcedure
+    .input(z.object({ kioskId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return ctx.db.bill.findMany({
+        where: {
+          kioskId: input.kioskId,
+          createdAt: { gte: today },
+          orderStatus: { in: ["PREPARING", "READY"] },
+        },
+        include: {
+          items: {
+            include: { item: true },
+          },
+          operator: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
+
+  startCooking: operatorProcedure
+    .input(z.object({ billId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.bill.update({
+        where: { id: input.billId },
+        data: {
+          orderStatus: "PREPARING",
+          cookingStartedAt: new Date(),
+        },
+      });
+    }),
+
+  // ── Shift Closing Z-Report ──
+  getZReport: operatorProcedure
+    .input(z.object({ kioskId: z.string(), date: z.date() }))
+    .query(async ({ input }) => {
+      return generateZReport(input.kioskId, input.date);
     }),
 });
